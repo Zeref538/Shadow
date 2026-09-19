@@ -128,21 +128,49 @@ Clone onto the USB rather than copying the folder. You get the history, and
 With the USB plugged in and showing as drive `E:`:
 
 ```bash
-git clone "C:/Users/johna/OneDrive/Documents/Portfolio/Shadow" /e/Shadow-backup
+git clone "C:/Users/johna/OneDrive/Documents/Portfolio/Shadow" /d/Shadow-backup
 ```
 
-To refresh it later:
+The USB copy has two remotes (places it can sync with):
+
+- `origin` -> GitHub, works on any computer
+- `laptop` -> the folder on your laptop, works with no internet
+
+To refresh it from your laptop, with the USB plugged in:
 
 ```bash
-cd /e/Shadow-backup
+cd /d/Shadow-backup
+git pull laptop master
+```
+
+Or from GitHub, on any machine with internet:
+
+```bash
 git pull
 ```
 
 To open the USB copy in Unity, use **Add project from disk** and pick
-`E:\Shadow-backup\Shadow2d`.
+`D:\Shadow-backup\Shadow2d`.
 
 **A clone only contains what you have committed.** Commit and push before you
 clone, every time.
+
+### "dubious ownership" error on the USB
+
+```
+fatal: detected dubious ownership in repository at 'D:/Shadow-backup'
+```
+
+USB sticks are usually formatted FAT32, which does not store file owners, so
+git cannot confirm the repo is yours and refuses to run. A repo can contain
+hooks - scripts that run automatically - so this check exists for a reason.
+Whitelisting your own USB is safe:
+
+```bash
+git config --global --add safe.directory D:/Shadow-backup
+```
+
+This is per-computer, so you may need it again on another machine.
 
 ---
 
