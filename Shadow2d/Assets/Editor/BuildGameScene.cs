@@ -15,8 +15,7 @@ public static class BuildGameScene
     const string OutScene = "Assets/Scenes/Game.unity";
     const string AnimDir = "Assets/Animations";
     const float CharHeight = 2f;     // player height in world units
-    const float PPU = 128f;          // 256px frames / 2 units
-    const float JumpPPU = 87f;       // jump art is drawn 1.47x smaller than idle/run
+    const float PPU = 110f;          // character is ~220px tall in a 256 canvas -> 2 units
     const float GroundLength = 60f;
 
     [MenuItem("Shadow/Build Game Scene")]
@@ -65,7 +64,7 @@ public static class BuildGameScene
     {
         foreach (var folder in new[] { "idle", "run", "jump" })
             foreach (var path in PngsIn("Assets/Sprites/" + folder))
-                ApplyImport(path, folder == "jump" ? JumpPPU : PPU, new Vector2(0.5f, 0f), SpriteMeshType.Tight);
+                ApplyImport(path, PPU, new Vector2(0.5f, 0f), SpriteMeshType.Tight);
 
         ApplyImport("Assets/Sprites/spikes.png", 64f, new Vector2(0.5f, 0f), SpriteMeshType.Tight);
 
@@ -218,7 +217,7 @@ public static class BuildGameScene
         var player = new GameObject("Player");
         player.transform.position = new Vector3(0f, 0.2f, 0f);
         var pSr = player.AddComponent<SpriteRenderer>();
-        pSr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/idle/idle1.png");
+        pSr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/idle/idle01.png");
         pSr.sortingOrder = 10;
 
         var rb = player.AddComponent<Rigidbody2D>();
