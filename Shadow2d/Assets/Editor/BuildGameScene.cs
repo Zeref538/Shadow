@@ -20,6 +20,9 @@ public static class BuildGameScene
     const float BgPPU = 63f;         // backgrounds stand 14 units tall
     const float PlatSolidH = 0.5f;   // standable band on a platform; vines hang below
     const float LevelLength = 160f;
+    // Swap this one word to reskin the whole level: ruin, ruin_vines,
+    // cavern, ice, moss, lava. All six sets share the same 16 tile names.
+    const string TileSet = "ruin";
 
     [MenuItem("Shadow/Build Game Scene")]
     public static void Build()
@@ -71,8 +74,11 @@ public static class BuildGameScene
 
         // Tight, not FullRect: PolygonCollider2D copies the sprite's physics
         // shape, and FullRect would give it a plain rectangle.
-        foreach (var path in PngsIn("Assets/Sprites/tiles"))
+        foreach (var path in PngsIn("Assets/Sprites/tiles", true))
             ApplyImport(path, TilePPU, new Vector2(0.5f, 0.5f), SpriteMeshType.Tight, true);
+
+        foreach (var path in PngsIn("Assets/Sprites/effects"))
+            ApplyImport(path, 165f, new Vector2(0.5f, 0f), SpriteMeshType.FullRect);
 
         foreach (var path in PngsIn("Assets/Sprites/backgrounds"))
             ApplyImport(path, BgPPU, new Vector2(0.5f, 0.5f), SpriteMeshType.FullRect);
@@ -106,8 +112,9 @@ public static class BuildGameScene
         importer.SaveAndReimport();
     }
 
-    static IEnumerable<string> PngsIn(string dir) =>
-        Directory.GetFiles(dir, "*.png")
+    static IEnumerable<string> PngsIn(string dir, bool recurse = false) =>
+        Directory.GetFiles(dir, "*.png",
+            recurse ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
                  .Select(p => p.Replace('\\', '/'))
                  .OrderBy(p => p, System.StringComparer.OrdinalIgnoreCase);
 
@@ -175,14 +182,16 @@ public static class BuildGameScene
     }
 
     static Sprite Tile(string n) =>
-        AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Sprites/tiles/{n}.png");
+        AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Sprites/tiles/{TileSet}/{n}.png");
+
+    static TileData.T Info(string n) => TileData.Map[$"{TileSet}/{n}"];
 
     // Drop one tile so its flat standable top lands exactly on topY.
     // Returns the object so callers can parent decoration to it.
     static GameObject Place(Transform parent, string tile, float cx, float topY,
                             int order, bool flip = false)
     {
-        var t = TileData.Map[tile];
+        var t = Info(tile);
         var go = new GameObject(tile);
         go.transform.SetParent(parent);
         go.transform.position = new Vector3(cx, topY + t.surface - t.h / 2f, 0f);
@@ -214,12 +223,12 @@ public static class BuildGameScene
         float x = x0;
         if (left != null)
         {
-            var lt = TileData.Map[left];
+            var lt = Info(left);
             Outline(Place(group.transform, left, x + lt.w / 2f, topY, order + 1), layer);
             x += lt.w;
         }
-        float rightW = right != null ? TileData.Map[right].w : 0f;
-        var mt = TileData.Map[mid];
+        float rightW = right != null ? Info(right).w : 0f;
+        var mt = Info(mid);
         while (x + mt.w <= x1 - rightW + 0.01f)
         {
             Outline(Place(group.transform, mid, x + mt.w / 2f, topY, order), layer);
@@ -248,7 +257,7 @@ public static class BuildGameScene
     // Decoration only, no collider. Aligned by the sprite's bottom edge.
     static void Decor(Transform parent, string tile, float cx, float bottomY, int order)
     {
-        var t = TileData.Map[tile];
+        var t = Info(tile);
         var go = new GameObject(tile + "_decor");
         go.transform.SetParent(parent);
         go.transform.position = new Vector3(cx, bottomY + t.h / 2f, 0f);
