@@ -25,7 +25,7 @@ public static class BuildGameScene
         ConfigureSprites();
 
         Directory.CreateDirectory(AnimDir);
-        var idle = MakeClip("Idle", "Assets/Sprites/idle", 10f, true);
+        var idle = MakeClip("Idle", "Assets/Sprites/idle", 10f, true, true);
         var run = MakeClip("Run", "Assets/Sprites/run", 12f, true);
         var jump = MakeClip("Jump", "Assets/Sprites/jump", 10f, false);
         var controller = MakeController(idle, run, jump);
@@ -101,11 +101,14 @@ public static class BuildGameScene
                  .Select(p => p.Replace('\\', '/'))
                  .OrderBy(p => p, System.StringComparer.OrdinalIgnoreCase);
 
-    static AnimationClip MakeClip(string name, string folder, float fps, bool loop)
+    static AnimationClip MakeClip(string name, string folder, float fps, bool loop, bool pingPong = false)
     {
         var sprites = PngsIn(folder).Select(AssetDatabase.LoadAssetAtPath<Sprite>)
                                     .Where(s => s != null).ToArray();
         if (sprites.Length == 0) throw new System.Exception("No sprites in " + folder);
+        // Ping-pong: 1..6 then 5..2, skipping both endpoints so the loop does not stutter.
+        if (pingPong && sprites.Length > 2)
+            sprites = sprites.Concat(sprites.Reverse().Skip(1).Take(sprites.Length - 2)).ToArray();
 
         var clip = new AnimationClip { frameRate = fps };
         var binding = new EditorCurveBinding
