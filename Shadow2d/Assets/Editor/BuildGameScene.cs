@@ -16,6 +16,11 @@ public static class BuildGameScene
     const string AnimDir = "Assets/Animations";
     const float CharHeight = 2f;     // player height in world units
     const float PPU = 110f;          // character is ~220px tall in a 256 canvas -> 2 units
+    const float TilePPU = 156f;      // ground_mid is 313px wide -> 2 world units per tile
+    const float BgPPU = 63f;         // backgrounds stand 14 units tall
+    const float GroundH = 1.51f;     // ground_mid 236px / TilePPU
+    const float PlatSpriteH = 2.0f;  // plat tiles incl. hanging vines
+    const float PlatSolidH = 0.5f;   // only the slab on top is standable
     const float LevelLength = 132f;
 
     [MenuItem("Shadow/Build Game Scene")]
@@ -68,13 +73,12 @@ public static class BuildGameScene
 
         ApplyImport("Assets/Sprites/spikes.png", 64f, new Vector2(0.5f, 0f), SpriteMeshType.Tight);
 
-        var ground = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Sprites/ground.png");
-        if (ground != null)
-            ApplyImport("Assets/Sprites/ground.png", ground.height, new Vector2(0.5f, 0.5f), SpriteMeshType.FullRect);
+        foreach (var path in PngsIn("Assets/Sprites/tiles"))
+            ApplyImport(path, TilePPU, new Vector2(0.5f, 0.5f), SpriteMeshType.FullRect);
 
-        var bg = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Sprites/bg.png");
-        if (bg != null)
-            ApplyImport("Assets/Sprites/bg.png", bg.height / 12f, new Vector2(0.5f, 0.5f), SpriteMeshType.FullRect);
+        foreach (var path in PngsIn("Assets/Sprites/backgrounds"))
+            ApplyImport(path, BgPPU, new Vector2(0.5f, 0.5f), SpriteMeshType.FullRect);
+
     }
 
     static void ApplyImport(string path, float ppu, Vector2 pivot, SpriteMeshType mesh)
@@ -168,19 +172,45 @@ public static class BuildGameScene
         return ac;
     }
 
-    // One tiled sprite plus a BoxCollider2D that exactly matches it.
-    static void MakeSolid(Transform parent, int layer, string name,
-                          float cx, float cy, float w, float h, int order)
+    static Sprite Tile(string n) =>
+        AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Sprites/tiles/{n}.png");
+
+    // A run of tiles: middle repeated, decorative end caps, one collider.
+    // colliderH lets a platform be thick art with a thin standable top.
+    static void MakeRun(Transform parent, int layer, string name,
+                        string mid, string left, string right,
+                        float cx, float topY, float w, float spriteH,
+                        float colliderH, int order)
     {
         var go = new GameObject(name) { layer = layer };
         go.transform.SetParent(parent);
-        go.transform.position = new Vector3(cx, cy, 0f);
+        go.transform.position = new Vector3(cx, topY - spriteH / 2f, 0f);
+
         var sr = go.AddComponent<SpriteRenderer>();
-        sr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/ground.png");
+        sr.sprite = Tile(mid);
         sr.drawMode = SpriteDrawMode.Tiled;
-        sr.size = new Vector2(w, h);
+        sr.size = new Vector2(w, spriteH);
         sr.sortingOrder = order;
-        go.AddComponent<BoxCollider2D>().size = new Vector2(w, h);
+
+        var bc = go.AddComponent<BoxCollider2D>();
+        bc.size = new Vector2(w, colliderH);
+        // Collider sits flush with the top of the art, not the middle of it.
+        bc.offset = new Vector2(0f, spriteH / 2f - colliderH / 2f);
+
+        foreach (var (tile, side) in new[] { (left, -1f), (right, 1f) })
+        {
+            if (string.IsNullOrEmpty(tile)) continue;
+            var sprite = Tile(tile);
+            if (sprite == null) continue;
+            float capW = sprite.bounds.size.x;
+            var cap = new GameObject(name + (side < 0 ? "_L" : "_R"));
+            cap.transform.SetParent(go.transform);
+            cap.transform.position = new Vector3(cx + side * (w - capW) / 2f,
+                                                 topY - spriteH / 2f, 0f);
+            var csr = cap.AddComponent<SpriteRenderer>();
+            csr.sprite = sprite;
+            csr.sortingOrder = order + 1;
+        }
     }
 
     static void BuildScene(AnimatorController controller, int groundLayer)
@@ -206,12 +236,30 @@ public static class BuildGameScene
         music.volume = 0.5f;
 
         var bg = new GameObject("Background");
-        var bgSr = bg.AddComponent<SpriteRenderer>();
-        bgSr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/bg.png");
-        bgSr.drawMode = SpriteDrawMode.Tiled;
-        bgSr.size = new Vector2(LevelLength + 40f, 20f);
-        bgSr.sortingOrder = -100;
-        bg.transform.position = new Vector3(LevelLength / 2f, 5f, 0f);
+        // Nearer layers scroll faster; that speed difference is what the eye
+        // reads as depth. Sky barely moves, bamboo races past.
+        var layers = new[]
+        {
+            ("bg1_sky",  0.10f, 24f, -100),
+            ("bg2_far",  0.30f, 18f,  -90),
+            ("bg3_mid",  0.55f, 16f,  -80),
+            ("bg4_near", 0.85f, 16f,  -20),
+        };
+        foreach (var (file, factor, height, order) in layers)
+        {
+            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(
+                $"Assets/Sprites/backgrounds/{file}.png");
+            if (sprite == null) continue;
+            var go = new GameObject(file);
+            go.transform.SetParent(bg.transform);
+            go.transform.position = new Vector3(LevelLength / 2f, height / 2f - 3f, 0f);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.drawMode = SpriteDrawMode.Tiled;
+            sr.size = new Vector2(LevelLength + 80f, height);
+            sr.sortingOrder = order;
+            go.AddComponent<Parallax>().factor = factor;
+        }
 
         var level = new GameObject("Level");
 
@@ -222,8 +270,9 @@ public static class BuildGameScene
             (0f, 18f), (22f, 40f), (45f, 70f), (74f, 100f), (104f, 132f)
         };
         foreach (var (x0, x1) in runs)
-            MakeSolid(level.transform, groundLayer, "Ground",
-                      (x0 + x1) / 2f, -1f, x1 - x0, 2f, -10);
+            MakeRun(level.transform, groundLayer, "Ground",
+                    "ground_mid", "ground_left", "ground_right",
+                    (x0 + x1) / 2f, 0f, x1 - x0, GroundH, GroundH, -10);
 
         // Floating platforms: (centreX, topY, width). Heights are stepped so
         // each high one is reachable from the platform before it.
@@ -236,8 +285,14 @@ public static class BuildGameScene
             (110f, 4.0f, 4f),   (118f, 6.0f, 3f), (125f, 3.0f, 4f)
         };
         foreach (var (x, top, w) in platforms)
-            MakeSolid(level.transform, groundLayer, "Platform",
-                      x, top - 0.3f, w, 0.6f, -5);
+        {
+            bool small = w <= 2.2f;
+            MakeRun(level.transform, groundLayer, "Platform",
+                    small ? "plat_single" : "plat_mid",
+                    small ? null : "plat_left",
+                    small ? null : "plat_right",
+                    x, top, w, PlatSpriteH, PlatSolidH, -5);
+        }
 
         // Hazards on the ground runs, placed clear of the gap edges.
         var spikeXs = new[] { 8f, 13f, 30f, 35f, 52f, 60f, 66f, 78f, 92f, 97f, 112f, 122f };
