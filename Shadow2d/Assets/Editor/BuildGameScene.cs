@@ -92,6 +92,10 @@ public static class BuildGameScene
         s.spriteMeshType = mesh;
         s.spriteExtrude = 1;
         importer.SetTextureSettings(s);
+        // Bilinear, not Point: this is painted art that gets scaled down.
+        // Point is for pixel art, where hard pixel edges are the intent.
+        importer.filterMode = FilterMode.Bilinear;
+        importer.textureCompression = TextureImporterCompression.CompressedHQ;
         importer.maxTextureSize = 2048;
         importer.SaveAndReimport();
     }
