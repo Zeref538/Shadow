@@ -18,10 +18,8 @@ public static class BuildGameScene
     const float PPU = 110f;          // character is ~220px tall in a 256 canvas -> 2 units
     const float TilePPU = 156f;      // ground_mid is 313px wide -> 2 world units per tile
     const float BgPPU = 63f;         // backgrounds stand 14 units tall
-    const float GroundH = 1.51f;     // ground_mid 236px / TilePPU
-    const float PlatSpriteH = 2.0f;  // plat tiles incl. hanging vines
-    const float PlatSolidH = 0.5f;   // only the slab on top is standable
-    const float LevelLength = 132f;
+    const float PlatSolidH = 0.5f;   // standable band on a platform; vines hang below
+    const float LevelLength = 160f;
 
     [MenuItem("Shadow/Build Game Scene")]
     public static void Build()
@@ -71,8 +69,6 @@ public static class BuildGameScene
             foreach (var path in PngsIn("Assets/Sprites/" + folder))
                 ApplyImport(path, PPU, new Vector2(0.5f, 0f), SpriteMeshType.Tight);
 
-        ApplyImport("Assets/Sprites/spikes.png", 64f, new Vector2(0.5f, 0f), SpriteMeshType.Tight);
-
         foreach (var path in PngsIn("Assets/Sprites/tiles"))
             ApplyImport(path, TilePPU, new Vector2(0.5f, 0.5f), SpriteMeshType.FullRect);
 
@@ -94,12 +90,11 @@ public static class BuildGameScene
         s.spriteAlignment = (int)SpriteAlignment.Custom;
         s.spritePivot = pivot;
         s.spriteMeshType = mesh;
-        s.spriteExtrude = 1;
+        s.spriteExtrude = 0;   // any padding here shows as a gap when tiles repeat
         importer.SetTextureSettings(s);
         // Bilinear, not Point: this is painted art that gets scaled down.
         // Point is for pixel art, where hard pixel edges are the intent.
         importer.filterMode = FilterMode.Bilinear;
-        importer.textureCompression = TextureImporterCompression.CompressedHQ;
         importer.maxTextureSize = 2048;
         importer.SaveAndReimport();
     }
@@ -175,42 +170,79 @@ public static class BuildGameScene
     static Sprite Tile(string n) =>
         AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Sprites/tiles/{n}.png");
 
-    // A run of tiles: middle repeated, decorative end caps, one collider.
-    // colliderH lets a platform be thick art with a thin standable top.
-    static void MakeRun(Transform parent, int layer, string name,
-                        string mid, string left, string right,
-                        float cx, float topY, float w, float spriteH,
-                        float colliderH, int order)
+    // Drop one tile so its flat standable top lands exactly on topY.
+    // Returns the object so callers can parent decoration to it.
+    static GameObject Place(Transform parent, string tile, float cx, float topY,
+                            int order, bool flip = false)
     {
-        var go = new GameObject(name) { layer = layer };
+        var t = TileData.Map[tile];
+        var go = new GameObject(tile);
         go.transform.SetParent(parent);
-        go.transform.position = new Vector3(cx, topY - spriteH / 2f, 0f);
-
+        go.transform.position = new Vector3(cx, topY + t.surface - t.h / 2f, 0f);
+        if (flip) go.transform.localScale = new Vector3(-1f, 1f, 1f);
         var sr = go.AddComponent<SpriteRenderer>();
-        sr.sprite = Tile(mid);
-        sr.drawMode = SpriteDrawMode.Tiled;
-        sr.size = new Vector2(w, spriteH);
+        sr.sprite = Tile(tile);
         sr.sortingOrder = order;
+        return go;
+    }
 
-        var bc = go.AddComponent<BoxCollider2D>();
-        bc.size = new Vector2(w, colliderH);
-        // Collider sits flush with the top of the art, not the middle of it.
-        bc.offset = new Vector2(0f, spriteH / 2f - colliderH / 2f);
+    // A horizontal stretch of tiles from x0 to x1 with its top at topY.
+    // ONE collider spans the whole stretch: a row of separate box colliders
+    // leaves hairline seams that a running player catches on.
+    static void Stretch(Transform parent, int layer, string name,
+                        string mid, string left, string right,
+                        float x0, float x1, float topY, float colliderH, int order)
+    {
+        var group = new GameObject(name) { layer = layer };
+        group.transform.SetParent(parent);
+        group.transform.position = new Vector3((x0 + x1) / 2f, topY, 0f);
 
-        foreach (var (tile, side) in new[] { (left, -1f), (right, 1f) })
+        var bc = group.AddComponent<BoxCollider2D>();
+        bc.size = new Vector2(x1 - x0, colliderH);
+        bc.offset = new Vector2(0f, -colliderH / 2f);
+
+        float x = x0;
+        if (left != null)
         {
-            if (string.IsNullOrEmpty(tile)) continue;
-            var sprite = Tile(tile);
-            if (sprite == null) continue;
-            float capW = sprite.bounds.size.x;
-            var cap = new GameObject(name + (side < 0 ? "_L" : "_R"));
-            cap.transform.SetParent(go.transform);
-            cap.transform.position = new Vector3(cx + side * (w - capW) / 2f,
-                                                 topY - spriteH / 2f, 0f);
-            var csr = cap.AddComponent<SpriteRenderer>();
-            csr.sprite = sprite;
-            csr.sortingOrder = order + 1;
+            var lt = TileData.Map[left];
+            Place(group.transform, left, x + lt.w / 2f, topY, order + 1);
+            x += lt.w;
         }
+        float rightW = right != null ? TileData.Map[right].w : 0f;
+        var mt = TileData.Map[mid];
+        while (x + mt.w <= x1 - rightW + 0.01f)
+        {
+            Place(group.transform, mid, x + mt.w / 2f, topY, order);
+            x += mt.w;
+        }
+        if (right != null)
+            Place(group.transform, right, x1 - rightW / 2f, topY, order + 1);
+    }
+
+    // A single tile that you can stand on.
+    static void Solid(Transform parent, int layer, string tile,
+                      float cx, float topY, int order, bool flip = false)
+    {
+        var t = TileData.Map[tile];
+        var go = Place(parent, tile, cx, topY, order, flip);
+        go.layer = layer;
+        float h = Mathf.Min(PlatSolidH, t.solid - t.surface);
+        var bc = go.AddComponent<BoxCollider2D>();
+        bc.size = new Vector2(t.w * 0.92f, h);
+        // Local space, and the sprite may be mirrored, so work off the centre.
+        bc.offset = new Vector2(0f, (t.h / 2f - t.surface) - h / 2f);
+    }
+
+    // Decoration only, no collider. Aligned by the sprite's bottom edge.
+    static void Decor(Transform parent, string tile, float cx, float bottomY, int order)
+    {
+        var t = TileData.Map[tile];
+        var go = new GameObject(tile + "_decor");
+        go.transform.SetParent(parent);
+        go.transform.position = new Vector3(cx, bottomY + t.h / 2f, 0f);
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = Tile(tile);
+        sr.sortingOrder = order;
     }
 
     static void BuildScene(AnimatorController controller, int groundLayer)
@@ -262,55 +294,61 @@ public static class BuildGameScene
         }
 
         var level = new GameObject("Level");
+        var L = level.transform;
 
-        // Solid ground runs, with gaps between them the player must jump.
-        // Each entry is (xStart, xEnd). Top surface sits at y = 0.
-        var runs = new[]
-        {
-            (0f, 18f), (22f, 40f), (45f, 70f), (74f, 100f), (104f, 132f)
-        };
+        // ---- solid ground, with gaps to cross ----
+        var runs = new[] { (0f, 14f), (20f, 34f), (46f, 58f),
+                           (72f, 86f), (102f, 116f), (132f, 158f) };
         foreach (var (x0, x1) in runs)
-            MakeRun(level.transform, groundLayer, "Ground",
-                    "ground_mid", "ground_left", "ground_right",
-                    (x0 + x1) / 2f, 0f, x1 - x0, GroundH, GroundH, -10);
+            Stretch(L, groundLayer, "Ground", "ground_mid", "ground_left", "ground_right",
+                    x0, x1, 0f, 1.0f, -10);
 
-        // Floating platforms: (centreX, topY, width). Heights are stepped so
-        // each high one is reachable from the platform before it.
-        var platforms = new[]
+        // ---- wide platform stretches ----
+        var platRuns = new[] { (24f, 30f, 4.2f), (88f, 94f, 2.4f), (120f, 127f, 3.4f) };
+        foreach (var (x0, x1, y) in platRuns)
+            Stretch(L, groundLayer, "Platform", "plat_mid", "plat_left", "plat_right",
+                    x0, x1, y, PlatSolidH, -5);
+
+        // ---- single standable tiles: the parkour route ----
+        // (tile, x, topY) - every remaining tile in the set gets used.
+        var pieces = new (string tile, float x, float y)[]
         {
-            (19.5f, 2.2f, 3f),  (26f, 3.0f, 4f),  (32f, 5.0f, 3f),
-            (41.5f, 2.5f, 3f),  (50f, 3.5f, 4f),  (56f, 6.0f, 3f),
-            (63f, 4.0f, 4f),    (71.5f, 2.8f, 3f),(80f, 3.2f, 4f),
-            (87f, 5.5f, 3f),    (94f, 3.0f, 4f),  (101.5f, 2.5f, 3.5f),
-            (110f, 4.0f, 4f),   (118f, 6.0f, 3f), (125f, 3.0f, 4f)
+            ("plat_single", 17f,  1.8f),
+            ("slab",        37f,  2.2f),
+            ("ledge",       40.5f,3.6f),
+            ("block_small", 43.5f,2.0f),
+            ("edge_broken", 61f,  1.8f),
+            ("slab",        64f,  3.2f),
+            ("plat_single", 67f,  4.6f),
+            ("ledge",       70f,  2.8f),
+            ("block_small", 96.5f,4.0f),
+            ("slab",        99f,  2.6f),
+            ("block_rune",  110f, 3.6f),
+            ("edge_broken", 118f, 1.6f),
+            ("pillar_top",  130f, 4.8f),
+            ("slab",        144f, 3.0f),
+            ("plat_single", 148f, 4.6f),
+            ("block_rune",  152f, 3.2f),
         };
-        foreach (var (x, top, w) in platforms)
-        {
-            bool small = w <= 2.2f;
-            MakeRun(level.transform, groundLayer, "Platform",
-                    small ? "plat_single" : "plat_mid",
-                    small ? null : "plat_left",
-                    small ? null : "plat_right",
-                    x, top, w, PlatSpriteH, PlatSolidH, -5);
-        }
+        foreach (var (tile, x, y) in pieces)
+            Solid(L, groundLayer, tile, x, y, -5);
 
-        // Hazards on the ground runs, placed clear of the gap edges.
-        var spikeXs = new[] { 8f, 13f, 30f, 35f, 52f, 60f, 66f, 78f, 92f, 97f, 112f, 122f };
-        var spikeSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/spikes.png");
-        foreach (var x in spikeXs)
+        // ---- stairs, used as a real step up off the ground ----
+        Solid(L, groundLayer, "stairs", 80f, 1.4f, -5);
+        Solid(L, groundLayer, "stairs", 136f, 1.4f, -5, flip: true);
+
+        // ---- pillars: decoration behind the action, plus one you can climb ----
+        var decor = new GameObject("Decor");
+        decor.transform.SetParent(L);
+        foreach (var px in new[] { 6f, 30f, 52f, 78f, 108f, 140f })
         {
-            var sp = new GameObject("Spikes");
-            sp.transform.SetParent(level.transform);
-            sp.transform.position = new Vector3(x, 0f, 0f);
-            var sr = sp.AddComponent<SpriteRenderer>();
-            sr.sprite = spikeSprite;
-            sr.sortingOrder = 5;
-            // Box, not polygon: the player should not be able to drop between
-            // the spike tips and stand safely inside the hazard.
-            var bc = sp.AddComponent<BoxCollider2D>();
-            bc.size = new Vector2(2f, 1f);
-            bc.offset = new Vector2(0f, 0.5f);
+            Decor(decor.transform, "pillar_base", px, 0f, -30);
+            Decor(decor.transform, "pillar_mid", px, 1.6f, -30);
+            Decor(decor.transform, "pillar_top", px, 3.4f, -30);
         }
+        // the climbable one under the standable pillar_top at x=130
+        Decor(decor.transform, "pillar_base", 130f, 0f, -6);
+        Decor(decor.transform, "pillar_mid", 130f, 1.6f, -6);
 
         var player = new GameObject("Player");
         player.transform.position = new Vector3(0f, 0.2f, 0f);
