@@ -16,7 +16,7 @@ public static class BuildGameScene
     const string AnimDir = "Assets/Animations";
     const float CharHeight = 2f;     // player height in world units
     const float PPU = 110f;          // character is ~220px tall in a 256 canvas -> 2 units
-    const float GroundLength = 60f;
+    const float LevelLength = 132f;
 
     [MenuItem("Shadow/Build Game Scene")]
     public static void Build()
@@ -168,12 +168,27 @@ public static class BuildGameScene
         return ac;
     }
 
+    // One tiled sprite plus a BoxCollider2D that exactly matches it.
+    static void MakeSolid(Transform parent, int layer, string name,
+                          float cx, float cy, float w, float h, int order)
+    {
+        var go = new GameObject(name) { layer = layer };
+        go.transform.SetParent(parent);
+        go.transform.position = new Vector3(cx, cy, 0f);
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/ground.png");
+        sr.drawMode = SpriteDrawMode.Tiled;
+        sr.size = new Vector2(w, h);
+        sr.sortingOrder = order;
+        go.AddComponent<BoxCollider2D>().size = new Vector2(w, h);
+    }
+
     static void BuildScene(AnimatorController controller, int groundLayer)
     {
         var scene = EditorSceneManager.OpenScene(TemplateScene, OpenSceneMode.Single);
 
         // Remove anything a previous run left behind.
-        foreach (var name in new[] { "Background", "Ground", "Spikes", "Spikes (2)", "Player" })
+        foreach (var name in new[] { "Background", "Level", "Ground", "Spikes", "Spikes (2)", "Player" })
         {
             var old = GameObject.Find(name);
             if (old != null) Object.DestroyImmediate(old);
@@ -194,29 +209,53 @@ public static class BuildGameScene
         var bgSr = bg.AddComponent<SpriteRenderer>();
         bgSr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/bg.png");
         bgSr.drawMode = SpriteDrawMode.Tiled;
-        bgSr.size = new Vector2(GroundLength + 20f, 14f);
+        bgSr.size = new Vector2(LevelLength + 40f, 20f);
         bgSr.sortingOrder = -100;
-        bg.transform.position = new Vector3(GroundLength / 3f, 3f, 0f);
+        bg.transform.position = new Vector3(LevelLength / 2f, 5f, 0f);
 
-        var ground = new GameObject("Ground") { layer = groundLayer };
-        var gSr = ground.AddComponent<SpriteRenderer>();
-        gSr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/ground.png");
-        gSr.drawMode = SpriteDrawMode.Tiled;
-        gSr.size = new Vector2(GroundLength, 2f);
-        gSr.sortingOrder = -10;
-        ground.transform.position = new Vector3(GroundLength / 3f, -1f, 0f);
-        ground.AddComponent<BoxCollider2D>().size = new Vector2(GroundLength, 2f);
+        var level = new GameObject("Level");
 
-        var spikes = new GameObject("Spikes");
-        var sSr = spikes.AddComponent<SpriteRenderer>();
-        sSr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/spikes.png");
-        sSr.sortingOrder = 5;
-        spikes.transform.position = new Vector3(6f, 0f, 0f);
-        spikes.AddComponent<PolygonCollider2D>();
+        // Solid ground runs, with gaps between them the player must jump.
+        // Each entry is (xStart, xEnd). Top surface sits at y = 0.
+        var runs = new[]
+        {
+            (0f, 18f), (22f, 40f), (45f, 70f), (74f, 100f), (104f, 132f)
+        };
+        foreach (var (x0, x1) in runs)
+            MakeSolid(level.transform, groundLayer, "Ground",
+                      (x0 + x1) / 2f, -1f, x1 - x0, 2f, -10);
 
-        var spikes2 = Object.Instantiate(spikes);
-        spikes2.name = "Spikes (2)";
-        spikes2.transform.position = new Vector3(13f, 0f, 0f);
+        // Floating platforms: (centreX, topY, width). Heights are stepped so
+        // each high one is reachable from the platform before it.
+        var platforms = new[]
+        {
+            (19.5f, 2.2f, 3f),  (26f, 3.0f, 4f),  (32f, 5.0f, 3f),
+            (41.5f, 2.5f, 3f),  (50f, 3.5f, 4f),  (56f, 6.0f, 3f),
+            (63f, 4.0f, 4f),    (71.5f, 2.8f, 3f),(80f, 3.2f, 4f),
+            (87f, 5.5f, 3f),    (94f, 3.0f, 4f),  (101.5f, 2.5f, 3.5f),
+            (110f, 4.0f, 4f),   (118f, 6.0f, 3f), (125f, 3.0f, 4f)
+        };
+        foreach (var (x, top, w) in platforms)
+            MakeSolid(level.transform, groundLayer, "Platform",
+                      x, top - 0.3f, w, 0.6f, -5);
+
+        // Hazards on the ground runs, placed clear of the gap edges.
+        var spikeXs = new[] { 8f, 13f, 30f, 35f, 52f, 60f, 66f, 78f, 92f, 97f, 112f, 122f };
+        var spikeSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/spikes.png");
+        foreach (var x in spikeXs)
+        {
+            var sp = new GameObject("Spikes");
+            sp.transform.SetParent(level.transform);
+            sp.transform.position = new Vector3(x, 0f, 0f);
+            var sr = sp.AddComponent<SpriteRenderer>();
+            sr.sprite = spikeSprite;
+            sr.sortingOrder = 5;
+            // Box, not polygon: the player should not be able to drop between
+            // the spike tips and stand safely inside the hazard.
+            var bc = sp.AddComponent<BoxCollider2D>();
+            bc.size = new Vector2(2f, 1f);
+            bc.offset = new Vector2(0f, 0.5f);
+        }
 
         var player = new GameObject("Player");
         player.transform.position = new Vector3(0f, 0.2f, 0f);
@@ -247,7 +286,7 @@ public static class BuildGameScene
 
         var cc = player.AddComponent<CharacterController2D>();
         var so = new SerializedObject(cc);
-        so.FindProperty("m_JumpForce").floatValue = 900f;
+        so.FindProperty("m_JumpForce").floatValue = 800f;
         so.FindProperty("m_AirControl").boolValue = true;
         so.FindProperty("m_WhatIsGround").intValue = 1 << groundLayer;
         so.FindProperty("m_GroundCheck").objectReferenceValue = groundCheck;
