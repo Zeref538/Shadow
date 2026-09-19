@@ -125,7 +125,8 @@ pulling, git stops and asks you to merge, which is annoying to untangle.
 Clone onto the USB rather than copying the folder. You get the history, and
 `Library/` is skipped automatically.
 
-With the USB plugged in and showing as drive `E:`:
+With the USB plugged in. Find its letter with `ls /[d-z] -d` first; yours came
+up as `D:`, so the commands below use `/d`:
 
 ```bash
 git clone "C:/Users/johna/OneDrive/Documents/Portfolio/Shadow" /d/Shadow-backup
