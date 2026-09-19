@@ -69,15 +69,18 @@ public static class BuildGameScene
             foreach (var path in PngsIn("Assets/Sprites/" + folder))
                 ApplyImport(path, PPU, new Vector2(0.5f, 0f), SpriteMeshType.Tight);
 
+        // Tight, not FullRect: PolygonCollider2D copies the sprite's physics
+        // shape, and FullRect would give it a plain rectangle.
         foreach (var path in PngsIn("Assets/Sprites/tiles"))
-            ApplyImport(path, TilePPU, new Vector2(0.5f, 0.5f), SpriteMeshType.FullRect);
+            ApplyImport(path, TilePPU, new Vector2(0.5f, 0.5f), SpriteMeshType.Tight, true);
 
         foreach (var path in PngsIn("Assets/Sprites/backgrounds"))
             ApplyImport(path, BgPPU, new Vector2(0.5f, 0.5f), SpriteMeshType.FullRect);
 
     }
 
-    static void ApplyImport(string path, float ppu, Vector2 pivot, SpriteMeshType mesh)
+    static void ApplyImport(string path, float ppu, Vector2 pivot, SpriteMeshType mesh,
+                            bool physicsShape = false)
     {
         var importer = AssetImporter.GetAtPath(path) as TextureImporter;
         if (importer == null) return;
@@ -91,6 +94,10 @@ public static class BuildGameScene
         s.spritePivot = pivot;
         s.spriteMeshType = mesh;
         s.spriteExtrude = 0;   // any padding here shows as a gap when tiles repeat
+        s.spriteGenerateFallbackPhysicsShape = physicsShape;
+        // Ignore near-transparent wisps so the outline follows solid stone,
+        // not every stray vine pixel the player could snag on.
+        s.alphaIsTransparency = true;
         importer.SetTextureSettings(s);
         // Bilinear, not Point: this is painted art that gets scaled down.
         // Point is for pixel art, where hard pixel edges are the intent.
@@ -197,40 +204,45 @@ public static class BuildGameScene
         group.transform.SetParent(parent);
         group.transform.position = new Vector3((x0 + x1) / 2f, topY, 0f);
 
-        var bc = group.AddComponent<BoxCollider2D>();
-        bc.size = new Vector2(x1 - x0, colliderH);
-        bc.offset = new Vector2(0f, -colliderH / 2f);
+        // A composite welds the child outlines into one continuous shape, so
+        // the player cannot catch on the hairline seam between two tiles.
+        group.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
+        var comp = group.AddComponent<CompositeCollider2D>();
+        comp.geometryType = CompositeCollider2D.GeometryType.Polygons;
+        comp.generationType = CompositeCollider2D.GenerationType.Synchronous;
 
         float x = x0;
         if (left != null)
         {
             var lt = TileData.Map[left];
-            Place(group.transform, left, x + lt.w / 2f, topY, order + 1);
+            Outline(Place(group.transform, left, x + lt.w / 2f, topY, order + 1), layer);
             x += lt.w;
         }
         float rightW = right != null ? TileData.Map[right].w : 0f;
         var mt = TileData.Map[mid];
         while (x + mt.w <= x1 - rightW + 0.01f)
         {
-            Place(group.transform, mid, x + mt.w / 2f, topY, order);
+            Outline(Place(group.transform, mid, x + mt.w / 2f, topY, order), layer);
             x += mt.w;
         }
         if (right != null)
-            Place(group.transform, right, x1 - rightW / 2f, topY, order + 1);
+            Outline(Place(group.transform, right, x1 - rightW / 2f, topY, order + 1), layer);
     }
 
-    // A single tile that you can stand on.
+    // Trace the sprite's own outline. Feeds a composite when there is one.
+    static void Outline(GameObject go, int layer)
+    {
+        go.layer = layer;
+        var pc = go.AddComponent<PolygonCollider2D>();
+        pc.usedByComposite = go.transform.parent != null
+                          && go.transform.parent.GetComponent<CompositeCollider2D>() != null;
+    }
+
+    // A single tile that you can stand on, collider traced from its pixels.
     static void Solid(Transform parent, int layer, string tile,
                       float cx, float topY, int order, bool flip = false)
     {
-        var t = TileData.Map[tile];
-        var go = Place(parent, tile, cx, topY, order, flip);
-        go.layer = layer;
-        float h = Mathf.Min(PlatSolidH, t.solid - t.surface);
-        var bc = go.AddComponent<BoxCollider2D>();
-        bc.size = new Vector2(t.w * 0.92f, h);
-        // Local space, and the sprite may be mirrored, so work off the centre.
-        bc.offset = new Vector2(0f, (t.h / 2f - t.surface) - h / 2f);
+        Outline(Place(parent, tile, cx, topY, order, flip), layer);
     }
 
     // Decoration only, no collider. Aligned by the sprite's bottom edge.
@@ -258,7 +270,7 @@ public static class BuildGameScene
 
         var cam = Camera.main;
         cam.orthographic = true;
-        cam.orthographicSize = 5f;
+        cam.orthographicSize = 6f;
         cam.transform.position = new Vector3(0f, 1f, -10f);
 
         var music = Ensure<AudioSource>(cam.gameObject);
@@ -393,8 +405,11 @@ public static class BuildGameScene
 
         var follow = Ensure<CameraFollow>(cam.gameObject);
         follow.followObject = player;
-        follow.followOffset = new Vector2(2f, 2f);
-        follow.speed = 6f;
+        // followOffset SHRINKS the dead zone: threshold = halfView - offset.
+        // At size 6 the half-view is ~10.7 x 6, so this leaves a small
+        // 1.7 x 1.5 box before the camera starts moving.
+        follow.followOffset = new Vector2(9f, 4.5f);
+        follow.speed = 14f;
 
         EditorSceneManager.SaveScene(scene, OutScene);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(OutScene, true) };
