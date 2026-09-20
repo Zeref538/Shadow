@@ -282,6 +282,10 @@ public static class BuildGameScene
         cam.orthographic = true;
         cam.orthographicSize = 6f;
         cam.transform.position = new Vector3(0f, 1f, -10f);
+        // Solid colour, not Skybox: a 2D game has no skybox, and the leftover
+        // default is the dark blue that shows through every gap in the art.
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = new Color(0.58f, 0.80f, 0.92f);   // daytime sky
 
         var music = Ensure<AudioSource>(cam.gameObject);
         music.clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/bgm.wav");
