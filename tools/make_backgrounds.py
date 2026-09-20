@@ -10,7 +10,8 @@ Run:  python tools/make_backgrounds.py
 import math, random
 from PIL import Image, ImageDraw, ImageFilter
 
-W, H = 2048, 1024
+W, H = 2048, 2048   # tall on purpose: the camera rises when you jump,
+                    # and a short layer lets bare sky show under the hills
 OUT = "Shadow2d/Assets/Sprites/backgrounds"
 random.seed(7)          # same art every run, so a rebuild never shuffles
 
@@ -44,7 +45,7 @@ def sky():
     clouds = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     cd = ImageDraw.Draw(clouds)
     for _ in range(14):
-        cx, cy = random.randrange(W), random.randrange(60, 430)
+        cx, cy = random.randrange(W), random.randrange(120, 900)
         for _ in range(random.randint(4, 7)):    # a cloud is a few overlapping blobs
             r = random.randint(40, 110)
             ox, oy = random.randint(-130, 130), random.randint(-22, 22)
@@ -67,11 +68,11 @@ def tree(d, x, y, h, dark, light):
 def main():
     sky().save(f"{OUT}/bg1_sky.png")
 
-    far = ridge([1, 2, 3], [70, 40, 22], 620, [0.4, 2.1, 4.3])
+    far = ridge([1, 2, 3], [70, 40, 22], 1120, [0.4, 2.1, 4.3])
     hills(far, (150, 186, 188, 255), (176, 206, 204, 255)) \
         .filter(ImageFilter.GaussianBlur(2)).save(f"{OUT}/bg2_far.png")
 
-    midline = ridge([1, 3, 5], [55, 30, 16], 730, [1.7, 0.9, 3.3])
+    midline = ridge([1, 3, 5], [55, 30, 16], 1300, [1.7, 0.9, 3.3])
     mid = hills(midline, (104, 152, 92, 255), (132, 180, 108, 255))
     md = ImageDraw.Draw(mid)
     for x in range(40, W, 118):
@@ -79,7 +80,7 @@ def main():
              (58, 96, 58, 255), (74, 118, 68, 255))
     mid.save(f"{OUT}/bg3_mid.png")
 
-    nearline = ridge([2, 4], [34, 18], 860, [0.2, 2.6])
+    nearline = ridge([2, 4], [34, 18], 1500, [0.2, 2.6])
     near = hills(nearline, (72, 124, 66, 255), (108, 166, 88, 255))
     nd = ImageDraw.Draw(near)
     for x in range(0, W, 26):                    # grass tufts along the crest

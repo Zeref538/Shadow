@@ -307,10 +307,10 @@ public static class BuildGameScene
         // reads as depth. Sky barely moves, bamboo races past.
         var layers = new[]
         {
-            ("bg1_sky",  0.10f, -3.0f, -100),
-            ("bg2_far",  0.30f, -3.5f,  -90),
-            ("bg3_mid",  0.55f, -4.0f,  -80),
-            ("bg4_near", 0.85f, -4.5f,  -20),
+            ("bg1_sky",  0.10f, -14f, -100),
+            ("bg2_far",  0.30f, -14f,  -90),
+            ("bg3_mid",  0.55f, -14f,  -80),
+            ("bg4_near", 0.85f, -14f,  -20),
         };
         foreach (var (file, factor, bottom, order) in layers)
         {
