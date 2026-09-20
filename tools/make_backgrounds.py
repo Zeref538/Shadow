@@ -79,8 +79,8 @@ def main():
     sky().save(f"{OUT}/bg1_sky.png")
 
     far = ridge([1, 2, 3], [70, 40, 22], 1120, [0.4, 2.1, 4.3])
-    hills(far, (150, 186, 188, 255), (176, 206, 204, 255)) \
-        .filter(ImageFilter.GaussianBlur(2)).save(f"{OUT}/bg2_far.png")
+    far_img = haze(hills(far, (110, 158, 132, 255), (140, 188, 158, 255)), 0.62)
+    far_img.filter(ImageFilter.GaussianBlur(3)).save(f"{OUT}/bg2_far.png")
 
     midline = ridge([1, 3, 5], [55, 30, 16], 1300, [1.7, 0.9, 3.3])
     mid = hills(midline, (104, 152, 92, 255), (132, 180, 108, 255))
