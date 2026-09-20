@@ -23,6 +23,16 @@ def ridge(freqs, amps, base, phase):
             for x in range(W)]
 
 
+def haze(img, amount):
+    """Wash a layer toward the sky colour. Things far away lose contrast
+    because there is more air between you and them - painters call it
+    aerial perspective, and it is the cheapest depth cue there is."""
+    sky = Image.new("RGBA", img.size, (170, 205, 235, 255))
+    out = Image.blend(img.convert("RGBA"), sky, amount)
+    out.putalpha(img.getchannel("A"))          # keep the cut-out shape
+    return out
+
+
 def hills(line, fill, shade=None):
     """Fill everything below the given hill line."""
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -75,10 +85,10 @@ def main():
     midline = ridge([1, 3, 5], [55, 30, 16], 1300, [1.7, 0.9, 3.3])
     mid = hills(midline, (104, 152, 92, 255), (132, 180, 108, 255))
     md = ImageDraw.Draw(mid)
-    for x in range(40, W, 118):
-        tree(md, x, midline[x] + 6, random.randint(120, 175),
+    for x in range(30, W, 64):
+        tree(md, x, midline[x] + 6, random.randint(58, 88),
              (58, 96, 58, 255), (74, 118, 68, 255))
-    mid.save(f"{OUT}/bg3_mid.png")
+    haze(mid, 0.28).save(f"{OUT}/bg3_mid.png")
 
     nearline = ridge([2, 4], [34, 18], 1500, [0.2, 2.6])
     near = hills(nearline, (72, 124, 66, 255), (108, 166, 88, 255))

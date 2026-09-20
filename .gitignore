@@ -24,3 +24,4 @@ Thumbs.db
 # Big screen recordings - keep them out of git, upload to YouTube instead
 *.mov
 *.mp4
+Logs/
