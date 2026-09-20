@@ -307,27 +307,28 @@ public static class BuildGameScene
         // reads as depth. Sky barely moves, bamboo races past.
         var layers = new[]
         {
-            ("bg1_sky",  0.10f, 24f, -100),
-            ("bg2_far",  0.30f, 18f,  -90),
-            ("bg3_mid",  0.55f, 16f,  -80),
-            ("bg4_near", 0.85f, 16f,  -20),
+            ("bg1_sky",  0.10f, -3.0f, -100),
+            ("bg2_far",  0.30f, -3.5f,  -90),
+            ("bg3_mid",  0.55f, -4.0f,  -80),
+            ("bg4_near", 0.85f, -4.5f,  -20),
         };
-        foreach (var (file, factor, height, order) in layers)
+        foreach (var (file, factor, bottom, order) in layers)
         {
             var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(
                 $"Assets/Sprites/backgrounds/{file}.png");
             if (sprite == null) continue;
             var go = new GameObject(file);
             go.transform.SetParent(bg.transform);
-            go.transform.position = new Vector3(LevelLength / 2f, height / 2f - 3f, 0f);
+            // Use the sprite's own height so it only repeats sideways. Give it
+            // a different height and Tiled mode starts stacking copies upward,
+            // which is how you get a second horizon floating in the sky.
+            float h = sprite.bounds.size.y;
+            go.transform.position = new Vector3(LevelLength / 2f, bottom + h / 2f, 0f);
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = sprite;
             sr.drawMode = SpriteDrawMode.Tiled;
-            sr.size = new Vector2(LevelLength + 80f, height);
+            sr.size = new Vector2(LevelLength + 80f, h);
             sr.sortingOrder = order;
-            // These are night paintings. Tinting toward white lifts them until
-            // daytime grassland art replaces them.
-            sr.color = new Color(1f, 0.97f, 0.9f, order <= -90 ? 0.45f : 0.7f);
             go.AddComponent<Parallax>().factor = factor;
         }
 
