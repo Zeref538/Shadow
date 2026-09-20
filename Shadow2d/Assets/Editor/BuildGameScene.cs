@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 // Builds the playable scene on top of the URP template's SampleScene, so the
 // Main Camera and Global Light 2D stay correctly configured.
@@ -22,7 +23,7 @@ public static class BuildGameScene
     const float LevelLength = 160f;
     // Swap this one word to reskin the whole level: ruin, ruin_vines,
     // cavern, ice, moss, lava. All six sets share the same 16 tile names.
-    const string TileSet = "ruin";
+    const string TileSet = "moss";
 
     [MenuItem("Shadow/Build Game Scene")]
     public static void Build()
@@ -288,6 +289,15 @@ public static class BuildGameScene
         music.playOnAwake = true;
         music.volume = 0.5f;
 
+        // Daylight. The template's Global Light 2D is dim and cold, which is
+        // what made everything read as night.
+        var globalLight = GameObject.Find("Global Light 2D");
+        if (globalLight != null && globalLight.TryGetComponent<Light2D>(out var l2d))
+        {
+            l2d.color = new Color(1f, 0.98f, 0.92f);   // warm daylight
+            l2d.intensity = 1.15f;
+        }
+
         var bg = new GameObject("Background");
         // Nearer layers scroll faster; that speed difference is what the eye
         // reads as depth. Sky barely moves, bamboo races past.
@@ -311,6 +321,9 @@ public static class BuildGameScene
             sr.drawMode = SpriteDrawMode.Tiled;
             sr.size = new Vector2(LevelLength + 80f, height);
             sr.sortingOrder = order;
+            // These are night paintings. Tinting toward white lifts them until
+            // daytime grassland art replaces them.
+            sr.color = new Color(1f, 0.97f, 0.9f, order <= -90 ? 0.45f : 0.7f);
             go.AddComponent<Parallax>().factor = factor;
         }
 
@@ -412,13 +425,19 @@ public static class BuildGameScene
         pm.anime = anim;
         pm.runSpeed = 40f;
 
-        var follow = Ensure<CameraFollow>(cam.gameObject);
-        follow.followObject = player;
-        // followOffset SHRINKS the dead zone: threshold = halfView - offset.
-        // At size 6 the half-view is ~10.7 x 6, so this leaves a small
-        // 1.7 x 1.5 box before the camera starts moving.
-        follow.followOffset = new Vector2(9f, 4.5f);
-        follow.speed = 14f;
+        // CameraFollow.cs (the one supplied with the assignment) is still in
+        // the project, but it uses MoveTowards and feels stiff. This one
+        // eases and leads the player instead.
+        var oldFollow = cam.GetComponent<CameraFollow>();
+        if (oldFollow != null) Object.DestroyImmediate(oldFollow);
+
+        var follow = Ensure<PlayerCamera>(cam.gameObject);
+        follow.target = player.transform;
+        follow.smoothTime = 0.18f;
+        follow.lookAhead = 2.5f;
+        follow.offset = new Vector2(0f, 1.2f);
+        follow.minY = 1.5f;
+
 
         EditorSceneManager.SaveScene(scene, OutScene);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(OutScene, true) };
