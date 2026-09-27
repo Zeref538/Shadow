@@ -381,6 +381,7 @@ public static class BuildGameScene
         Decor(decor.transform, "pillar_mid", 130f, 1.6f, -6);
 
         var player = new GameObject("Player");
+        player.tag = "Player";   // trap.cs checks this tag; untagged, it never fires
         player.transform.position = new Vector3(0f, 0.2f, 0f);
         var pSr = player.AddComponent<SpriteRenderer>();
         pSr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/idle/idle01.png");
