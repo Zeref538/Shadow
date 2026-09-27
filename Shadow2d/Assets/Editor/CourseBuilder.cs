@@ -178,36 +178,40 @@ public static class CourseBuilder
         Debug.Log($"CourseBuilder: jump height {jumpHeight:F2}, range {jumpRange:F2}");
 
         level = new GameObject("Level").transform;
+        sectionStarts.Clear();
         float x = Course();
 
         player.transform.position = new Vector3(2f, 0.05f, 0f);
 
-        // The background came from the old 160-unit level. Stretch every
-        // layer sideways to cover this course, with a margin at each end.
+        // Three background zones so the backdrop changes as you go instead
+        // of one picture repeating the whole way:
+        //   A  sections 1-6    moonlit ruins (moon_*.png)
+        //   B  sections 7-12   the original night backdrop (bg1-4)
+        //   C  sections 13-18  moonlit ruins again, tinted crimson for the finale
+        // A tall column hides each zone border.
         var bg = GameObject.Find("Background");
         if (bg != null)
+        {
+            float b1 = sectionStarts[6], b2 = sectionStarts[12];
             foreach (var sr in bg.GetComponentsInChildren<SpriteRenderer>())
             {
-                sr.size = new Vector2(x + 80f, sr.size.y);
+                sr.size = new Vector2(b2 - b1 + 1f, sr.size.y);      // overlaps stay inside the column
                 var p = sr.transform.position;
-                sr.transform.position = new Vector3(x / 2f, p.y, p.z);
+                sr.transform.position = new Vector3((b1 + b2) / 2f, p.y, p.z);
             }
+            MoonZone(bg.transform, "Zone A", -40f, b1 + 0.5f, Color.white);
+            MoonZone(bg.transform, "Zone C", b2 - 0.5f, x + 40f, new Color(1f, 0.62f, 0.7f));
+            ZoneColumn(bg.transform, b1);
+            ZoneColumn(bg.transform, b2);
 
-        // The camera shows 12 units of height and follows the player up the
-        // stairway (~16 up) and down pits toward the KillZone. The art only
-        // spans y -4.5..9.6, so solid strips in the art's own edge colours
-        // run 40 units above and below it, across the whole level.
-        if (bg != null)
-        {
-            var art = new Bounds();
-            bool first = true;
-            foreach (var r in bg.GetComponentsInChildren<SpriteRenderer>())
-            {
-                if (first) { art = r.bounds; first = false; }
-                else art.Encapsulate(r.bounds);
-            }
-            Fill(bg.transform, "fill_above", art.center.x, art.max.y + 20f - 0.05f, art.size.x, 40f, new Color32(23, 22, 43, 255));
-            Fill(bg.transform, "fill_below", art.center.x, art.min.y - 20f + 0.05f, art.size.x, 40f, new Color32(27, 19, 43, 255));
+            // The camera shows 12 units of height and follows the player up
+            // the stairway (~16 up) and down pits toward the KillZone. Solid
+            // strips in each zone's edge colours run 40 units above and below
+            // the art so it never shows a gap.
+            Fill(bg.transform, "fill_above", x / 2f, 9.6f + 20f - 0.05f, x + 82f, 40f, new Color32(23, 22, 43, 255));
+            Fill(bg.transform, "fill_below A", (-40f + b1) / 2f, -4.5f - 20f + 0.05f, b1 + 42f, 40f, new Color32(3, 2, 10, 255));
+            Fill(bg.transform, "fill_below B", (b1 + b2) / 2f, -4.5f - 20f + 0.05f, b2 - b1 + 2f, 40f, new Color32(27, 19, 43, 255));
+            Fill(bg.transform, "fill_below C", (b2 + x + 40f) / 2f, -4.5f - 20f + 0.05f, x + 42f - b2, 40f, new Color32(3, 2, 10, 255));
         }
 
         // Background music: looping, starts with the scene.
@@ -232,6 +236,62 @@ public static class CourseBuilder
         // trap.cs reloads by build index; a scene not in this list has none.
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(OutScene, true) };
         Debug.Log($"CourseBuilder: course built, {x:F0} units long, saved to {OutScene}");
+    }
+
+    // The moonlit-ruins set: four layers from one pasted sheet, each at its
+    // own pixels-per-unit so they repeat at different widths (125, 118, 91
+    // and 100 units) and the combined picture never lines up the same twice.
+    static readonly string[] MoonLayers = { "moon_sky", "moon_far", "moon_mid", "moon_near" };
+    static readonly float[] MoonBottoms = { 1.5f, -4.5f, -4.5f, -4.5f };      // world y of each layer's bottom edge
+    static readonly int[] MoonOrders = { -100, -90, -80, -20 };             // same sorting as bg1-bg4
+
+    static void MoonZone(Transform parent, string name, float x0, float x1, Color tint)
+    {
+        var zone = new GameObject(name).transform;
+        zone.SetParent(parent);
+        for (int i = 0; i < MoonLayers.Length; i++)
+        {
+            string layer = MoonLayers[i];
+            float bottom = MoonBottoms[i];
+            int order = MoonOrders[i];
+            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Sprites/backgrounds/{layer}.png");
+            var go = new GameObject(layer);
+            go.transform.SetParent(zone);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.drawMode = SpriteDrawMode.Tiled;
+            sr.size = new Vector2(x1 - x0, sprite.bounds.size.y);
+            sr.sortingOrder = order;
+            sr.color = tint;
+            go.transform.position = new Vector3((x0 + x1) / 2f, bottom + sprite.bounds.size.y / 2f, 0f);
+        }
+    }
+
+    // A tall ruined column standing in the background right on a zone
+    // border, so the change of backdrop reads as walking into a new area.
+    // Decoration only: no collider, drawn behind the level and the player.
+    static void ZoneColumn(Transform parent, float x)
+    {
+        var col = new GameObject("zone_column").transform;
+        col.SetParent(parent);
+        var mid = Load("pillar_mid");
+        float h = Height(mid) - 0.05f;
+        for (float y = -16f; y < 15f; y += h)
+            ColumnPiece(col, mid, x, y);
+        ColumnPiece(col, Load("pillar_top"), x, 15f - 0.05f);
+    }
+
+    static void ColumnPiece(Transform parent, GameObject prefab, float cx, float bottom)
+    {
+        var go = new GameObject(prefab.name);
+        go.transform.SetParent(parent);
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = prefab.GetComponent<SpriteRenderer>().sprite;
+        sr.sortingOrder = -10;
+        sr.color = new Color(0.55f, 0.52f, 0.62f);          // darker: it's scenery, not a platform
+        go.transform.localScale = prefab.transform.localScale;
+        var b = sr.bounds;
+        go.transform.position = new Vector3(cx - b.center.x, bottom - b.min.y, 0f);
     }
 
     static void Fill(Transform parent, string name, float cx, float cy, float w, float h, Color32 colour)
@@ -309,8 +369,10 @@ public static class CourseBuilder
     }
 
     static Transform section;
+    static readonly List<float> sectionStarts = new List<float>();
     static float Section(string name, float x, System.Func<float, float> build)
     {
+        sectionStarts.Add(x);
         section = new GameObject(name).transform;
         section.SetParent(level);
         float end = build(x);
