@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -183,35 +184,29 @@ public static class CourseBuilder
 
         player.transform.position = new Vector3(2f, 0.05f, 0f);
 
-        // Three background zones so the backdrop changes as you go instead
-        // of one picture repeating the whole way:
-        //   A  sections 1-6    moonlit ruins (moon_*.png)
-        //   B  sections 7-12   the original night backdrop (bg1-4)
-        //   C  sections 13-18  moonlit ruins again, tinted crimson for the finale
-        // A tall column hides each zone border.
+        // Four background zones, one matching art set each, so the backdrop
+        // changes as you go instead of one picture repeating:
+        //   ruins    sections 1-3     moonlit castle ruins
+        //   grave    sections 4-8     haunted graveyard forest
+        //   crystal  sections 9-13    crystal cliffs
+        //   storm    sections 14-18   storm citadel (finale)
+        // A wide stone gate stands at each border; the backdrop switches
+        // behind its left pier, so you walk through the gate into the new area.
         var bg = GameObject.Find("Background");
         if (bg != null)
         {
-            float b1 = sectionStarts[6], b2 = sectionStarts[12];
-            foreach (var sr in bg.GetComponentsInChildren<SpriteRenderer>())
-            {
-                sr.size = new Vector2(b2 - b1 + 1f, sr.size.y);      // overlaps stay inside the column
-                var p = sr.transform.position;
-                sr.transform.position = new Vector3((b1 + b2) / 2f, p.y, p.z);
-            }
-            MoonZone(bg.transform, "Zone A", -40f, b1 + 0.5f, Color.white);
-            MoonZone(bg.transform, "Zone C", b2 - 0.5f, x + 40f, new Color(1f, 0.62f, 0.7f));
-            ZoneColumn(bg.transform, b1);
-            ZoneColumn(bg.transform, b2);
+            foreach (Transform old in bg.transform.Cast<Transform>().ToList())
+                Object.DestroyImmediate(old.gameObject);         // the original single backdrop
+            float[] borders = { -40f, sectionStarts[3], sectionStarts[8], sectionStarts[13], x + 40f };
+            for (int z = 0; z < Zones.Length; z++)
+                BackdropZone(bg.transform, Zones[z].name, borders[z], borders[z + 1], Zones[z].below);
+            for (int z = 1; z < Zones.Length; z++)
+                Gate(bg.transform, borders[z]);
 
             // The camera shows 12 units of height and follows the player up
             // the stairway (~16 up) and down pits toward the KillZone. Solid
-            // strips in each zone's edge colours run 40 units above and below
-            // the art so it never shows a gap.
-            Fill(bg.transform, "fill_above", x / 2f, 9.6f + 20f - 0.05f, x + 82f, 40f, new Color32(23, 22, 43, 255));
-            Fill(bg.transform, "fill_below A", (-40f + b1) / 2f, -4.5f - 20f + 0.05f, b1 + 42f, 40f, new Color32(3, 2, 10, 255));
-            Fill(bg.transform, "fill_below B", (b1 + b2) / 2f, -4.5f - 20f + 0.05f, b2 - b1 + 2f, 40f, new Color32(27, 19, 43, 255));
-            Fill(bg.transform, "fill_below C", (b2 + x + 40f) / 2f, -4.5f - 20f + 0.05f, x + 42f - b2, 40f, new Color32(3, 2, 10, 255));
+            // strips above the art and below each zone's art keep it covered.
+            Fill(bg.transform, "fill_above", x / 2f, 11f + 20f - 0.05f, x + 82f, 40f, new Color32(23, 22, 43, 255));
         }
 
         // Background music: looping, starts with the scene.
@@ -238,50 +233,88 @@ public static class CourseBuilder
         Debug.Log($"CourseBuilder: course built, {x:F0} units long, saved to {OutScene}");
     }
 
-    // The moonlit-ruins set: four layers from one pasted sheet, each at its
-    // own pixels-per-unit so they repeat at different widths (125, 118, 91
-    // and 100 units) and the combined picture never lines up the same twice.
-    static readonly string[] MoonLayers = { "moon_sky", "moon_far", "moon_mid", "moon_near" };
-    static readonly float[] MoonBottoms = { 1.5f, -4.5f, -4.5f, -4.5f };      // world y of each layer's bottom edge
-    static readonly int[] MoonOrders = { -100, -90, -80, -20 };             // same sorting as bg1-bg4
-
-    static void MoonZone(Transform parent, string name, float x0, float x1, Color tint)
+    // Each zone's art set: four layers from one pasted sheet, at their own
+    // pixels-per-unit so they repeat at different widths (125, 118, 91 and
+    // 100 units) and the combined picture never lines up the same twice.
+    // `below` is the colour of the near layer's bottom edge, used for the
+    // strip that fills under it.
+    static readonly (string name, Color32 below)[] Zones =
     {
-        var zone = new GameObject(name).transform;
+        ("ruins",   new Color32(7, 8, 27, 255)),
+        ("grave",   new Color32(6, 2, 13, 255)),
+        ("crystal", new Color32(6, 3, 12, 255)),
+        ("storm",   new Color32(9, 4, 19, 255)),
+    };
+    static readonly string[] Layers = { "sky", "far", "mid", "near" };
+    static readonly float[] LayerBottoms = { 1.5f, -4.5f, -4.5f, -4.5f };   // world y of each layer's bottom edge
+    static readonly int[] LayerOrders = { -100, -90, -80, -20 };
+
+    static void BackdropZone(Transform parent, string zoneName, float x0, float x1, Color32 below)
+    {
+        var zone = new GameObject("Zone " + zoneName).transform;
         zone.SetParent(parent);
-        for (int i = 0; i < MoonLayers.Length; i++)
+        for (int i = 0; i < Layers.Length; i++)
         {
-            string layer = MoonLayers[i];
-            float bottom = MoonBottoms[i];
-            int order = MoonOrders[i];
-            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Sprites/backgrounds/{layer}.png");
-            var go = new GameObject(layer);
+            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Sprites/backgrounds/{zoneName}_{Layers[i]}.png");
+            var go = new GameObject(Layers[i]);
             go.transform.SetParent(zone);
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = sprite;
             sr.drawMode = SpriteDrawMode.Tiled;
             sr.size = new Vector2(x1 - x0, sprite.bounds.size.y);
-            sr.sortingOrder = order;
-            sr.color = tint;
-            go.transform.position = new Vector3((x0 + x1) / 2f, bottom + sprite.bounds.size.y / 2f, 0f);
+            sr.sortingOrder = LayerOrders[i];
+            go.transform.position = new Vector3((x0 + x1) / 2f, LayerBottoms[i] + sprite.bounds.size.y / 2f, 0f);
+        }
+        Fill(zone, "fill_below", (x0 + x1) / 2f, -4.5f - 20f + 0.05f, x1 - x0, 40f, below);
+    }
+
+    // A wide ruined gateway at a zone border: two thick piers and a lintel,
+    // standing in the background (no collider, behind the level and the
+    // player). The border sits in the middle of the left pier. If
+    // Assets/Sprites/props/gate.png exists it is used instead, with the border
+    // 20% in from its left edge (inside the left tower).
+    const string GateSprite = "Assets/Sprites/props/gate.png";
+    static void Gate(Transform parent, float border)
+    {
+        var gate = new GameObject("gate").transform;
+        gate.SetParent(parent);
+        var art = AssetDatabase.LoadAssetAtPath<Sprite>(GateSprite);
+        if (art != null)
+        {
+            var go = new GameObject("gate_art");
+            go.transform.SetParent(gate);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = art;
+            sr.sortingOrder = -10;
+            var b = art.bounds;
+            go.transform.position = new Vector3(border - (b.min.x + b.size.x * 0.2f), -4.5f - b.min.y, 0f);
+            return;
+        }
+        float colW = Width(Load("pillar_top"));
+        float leftPier = border - colW / 2f;                 // pier = two columns side by side
+        float rightPier = leftPier + colW * 2f + 6f;          // 6-unit opening
+        foreach (float px in new[] { leftPier, rightPier })
+            for (int c = 0; c < 2; c++)
+                GateColumn(gate, px + colW * (c + 0.5f), 6.5f);
+        var slab = Load("slab");
+        for (float lx = leftPier - 0.4f; lx < rightPier + colW * 2f + 0.4f;)
+        {
+            var go = ColumnPiece(gate, slab, 0f, 6.5f);
+            var b = go.GetComponent<SpriteRenderer>().bounds;
+            go.transform.position += new Vector3(lx - b.min.x, 0f, 0f);
+            lx += b.size.x - 0.05f;
         }
     }
 
-    // A tall ruined column standing in the background right on a zone
-    // border, so the change of backdrop reads as walking into a new area.
-    // Decoration only: no collider, drawn behind the level and the player.
-    static void ZoneColumn(Transform parent, float x)
+    static void GateColumn(Transform parent, float cx, float top)
     {
-        var col = new GameObject("zone_column").transform;
-        col.SetParent(parent);
         var mid = Load("pillar_mid");
         float h = Height(mid) - 0.05f;
-        for (float y = -16f; y < 15f; y += h)
-            ColumnPiece(col, mid, x, y);
-        ColumnPiece(col, Load("pillar_top"), x, 15f - 0.05f);
+        for (float y = -16f; y < top; y += h)
+            ColumnPiece(parent, mid, cx, y);
     }
 
-    static void ColumnPiece(Transform parent, GameObject prefab, float cx, float bottom)
+    static GameObject ColumnPiece(Transform parent, GameObject prefab, float cx, float bottom)
     {
         var go = new GameObject(prefab.name);
         go.transform.SetParent(parent);
@@ -291,7 +324,8 @@ public static class CourseBuilder
         sr.color = new Color(0.55f, 0.52f, 0.62f);          // darker: it's scenery, not a platform
         go.transform.localScale = prefab.transform.localScale;
         var b = sr.bounds;
-        go.transform.position = new Vector3(cx - b.center.x, bottom - b.min.y, 0f);
+        go.transform.position += new Vector3(cx - b.center.x, bottom - b.min.y, 0f);
+        return go;
     }
 
     static void Fill(Transform parent, string name, float cx, float cy, float w, float h, Color32 colour)
