@@ -251,7 +251,7 @@ public static class CourseBuilder
         Physics2D.simulationMode = mode;
     }
 
-    // Fourteen sections, each built around a different idea, sized for
+    // Fifteen sections, each built around a different idea, sized for
     // roughly 2-3 minutes of play (the player runs at ~8 units/s; puzzles and
     // timing the hazards take up the rest). Floor level is y = 0; every
     // section starts and ends there so they can go in any order.
@@ -264,14 +264,15 @@ public static class CourseBuilder
         x = Section("04 Crumbling way",    x, CrumblingWay);
         x = Section("05 Blade corridor",   x, BladeCorridor);
         x = Section("06 Seesaw",           x, Seesaw);
-        x = Section("07 Low tunnel",       x, LowTunnel);
-        x = Section("08 Iron gauntlet",    x, IronGauntlet);
-        x = Section("09 Drop the crate",   x, DropTheCrate);
-        x = Section("10 Pillar hop",       x, PillarHop);
-        x = Section("11 Collapse climb",   x, CollapseClimb);
-        x = Section("12 Seesaw bridge",    x, SeesawBridge);
-        x = Section("13 Swinging pillars", x, SwingingPillars);
-        x = Section("14 The well",         x, TheWellAndFinish);
+        x = Section("07 Boulder valley",   x, BoulderValley);
+        x = Section("08 Low tunnel",       x, LowTunnel);
+        x = Section("09 Iron gauntlet",    x, IronGauntlet);
+        x = Section("10 Drop the crate",   x, DropTheCrate);
+        x = Section("11 Pillar hop",       x, PillarHop);
+        x = Section("12 Collapse climb",   x, CollapseClimb);
+        x = Section("13 Seesaw bridge",    x, SeesawBridge);
+        x = Section("14 Swinging pillars", x, SwingingPillars);
+        x = Section("15 The well",         x, TheWellAndFinish);
         return x;
     }
 
@@ -298,7 +299,7 @@ public static class CourseBuilder
             x = Run(x + Gap(g), x + Gap(g) + 8f, 0f);
         float end = Run(x, x + 22f, 0f);
         PutCentre("block_small", x + 6f, 0f);            // hurdle, sitting on the floor
-        FloorSpikes(x + 12f, x + 15.5f, 0f);             // then a spike patch to jump
+        FloorSpikes(x + 12f, x + 14f, 0f);               // then one strip of floor spikes to jump
         float step = Rise(0.45f);
         var face = Column(end, -3f, step);
         float top = Run(Right(face) - 0.05f, Right(face) + 8f, step);
@@ -474,6 +475,72 @@ public static class CourseBuilder
             prevRight = Right(col);
         }
         return Run(prevRight + Gap(0.35f), prevRight + Gap(0.35f) + 8f, 0f);
+    }
+
+    // A valley made of two ramps with a spiked boulder rolling back and forth
+    // in it. It starts part-way down one slope, so it never has the energy
+    // to climb out to the rims: wait on the rim, then run across while it
+    // rolls away. Pure physics - the boulder only carries trap.cs.
+    static float BoulderValley(float x)
+    {
+        var down = Ramp(x, 0f, descending: true);
+        float lowY = RampLowTop(down);
+        float bottomStart = Right(down) - 0.3f;
+        float bottomEnd = Run(bottomStart, bottomStart + 4f, lowY);
+        var up = Ramp(bottomEnd - 0.3f, 0f, descending: false);
+        Boulder(down, 0.3f);
+        return Run(Right(up) - 0.05f, Right(up) + 8f, 0f);
+    }
+
+    // ramp.png: 640x259 at 100 px/unit, low on the left, high on the right.
+    // Its collider follows the stone top, not the hanging vines. Points are
+    // in pixels (y down) and converted to local units around the centre.
+    const string RampSprite = "Assets/Sprites/tiles/ruin/ramp.png";
+    static readonly Vector2[] RampPx = { new Vector2(4, 218), new Vector2(4, 204), new Vector2(575, 3), new Vector2(636, 3), new Vector2(636, 258) };
+    static Vector2 RampLocal(Vector2 px) => new Vector2((px.x - 320f) / 100f, (129.5f - px.y) / 100f);
+
+    static GameObject Ramp(float left, float rimY, bool descending)
+    {
+        var go = new GameObject(descending ? "ramp_down" : "ramp_up");
+        go.transform.SetParent(section);
+        go.AddComponent<SpriteRenderer>().sprite = AssetDatabase.LoadAssetAtPath<Sprite>(RampSprite);
+        if (descending) go.transform.localScale = new Vector3(-1f, 1f, 1f);
+        var edge = go.AddComponent<EdgeCollider2D>();
+        var pts = new Vector2[RampPx.Length];
+        for (int i = 0; i < pts.Length; i++) pts[i] = RampLocal(RampPx[i]);
+        edge.points = pts;
+        go.layer = LayerMask.NameToLayer("Ground");
+        go.transform.position = new Vector3(left + 3.2f, rimY - RampLocal(RampPx[2]).y, 0f);
+        Physics2D.SyncTransforms();
+        return go;
+    }
+
+    static float RampLowTop(GameObject ramp) => ramp.transform.TransformPoint(RampLocal(RampPx[1])).y;
+
+    // The spiked boulder, resting on a ramp's slope `t` of the way down from
+    // the rim.
+    static void Boulder(GameObject ramp, float t)
+    {
+        var sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/props/spiked_boulder.png");
+        Vector2 low = ramp.transform.TransformPoint(RampLocal(RampPx[1]));
+        Vector2 high = ramp.transform.TransformPoint(RampLocal(RampPx[2]));
+        Vector2 along = (low - high).normalized;
+        Vector2 normal = new Vector2(-along.y, along.x);
+        if (normal.y < 0f) normal = -normal;
+        float r = Mathf.Min(sprite.bounds.size.x, sprite.bounds.size.y) * 0.42f;   // the ball, not the spike tips
+        var go = new GameObject("spiked_boulder");
+        go.transform.SetParent(section);
+        go.AddComponent<SpriteRenderer>().sprite = sprite;
+        go.transform.position = Vector2.Lerp(high, low, t) + normal * (r + 0.02f);
+        go.AddComponent<CircleCollider2D>().radius = r;
+        var rb = go.AddComponent<Rigidbody2D>();
+        rb.mass = 5f;
+        rb.linearDamping = 0f;
+        rb.angularDamping = 0f;
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+        go.AddComponent<trap>();
+        Physics2D.SyncTransforms();
     }
 
     // Stone columns of uneven height over a deep drop.
