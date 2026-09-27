@@ -239,23 +239,23 @@ public static class CourseBuilder
         Physics2D.simulationMode = mode;
     }
 
-    // Each section is used exactly once. Floor level is y = 0; every section
-    // starts and ends there so they can go in any order.
+    // Ten sections, each built around a different idea, sized for roughly
+    // 2-3 minutes of play (the player runs at ~8 units/s; puzzles and
+    // timing the hazards take up the rest). Floor level is y = 0; every
+    // section starts and ends there so they can go in any order.
     static float Course()
     {
         float x = 0f;
-        x = Section("01 Warm-up",       x, WarmUp);
-        x = Section("02 Rising steps",  x, RisingSteps);
-        x = Section("03 Crate climb",   x, CrateClimb);
-        x = Section("04 Crumbling way", x, CrumblingWay);
-        x = Section("05 Log corridor",  x, LogCorridor);
-        x = Section("06 Seesaw",        x, Seesaw);
-        x = Section("07 Heavy block",   x, HeavyBlock);
-        x = Section("08 Pillar hop",    x, PillarHop);
-        x = Section("09 Iron swing",    x, IronSwing);
-        x = Section("10 Loose bridge",  x, LooseBridge);
-        x = Section("11 The well",      x, TheWell);
-        x = Section("12 Finish",        x, Finish);
+        x = Section("01 Warm-up",          x, WarmUp);
+        x = Section("02 Ruined stairway",  x, RuinedStairway);
+        x = Section("03 Crate walls",      x, CrateWalls);
+        x = Section("04 Crumbling way",    x, CrumblingWay);
+        x = Section("05 Blade corridor",   x, BladeCorridor);
+        x = Section("06 Seesaw",           x, Seesaw);
+        x = Section("07 Low tunnel",       x, LowTunnel);
+        x = Section("08 Pillar hop",       x, PillarHop);
+        x = Section("09 Iron gauntlet",    x, IronGauntlet);
+        x = Section("10 The well",         x, TheWellAndFinish);
         return x;
     }
 
@@ -265,7 +265,7 @@ public static class CourseBuilder
         section = new GameObject(name).transform;
         section.SetParent(level);
         float end = build(x);
-        Debug.Log($"CourseBuilder: {name,-16} x {x,6:F1} -> {end,6:F1}");
+        Debug.Log($"CourseBuilder: {name,-18} x {x,6:F1} -> {end,6:F1}");
         return end;
     }
 
@@ -274,64 +274,93 @@ public static class CourseBuilder
     static float Gap(float f) => jumpRange * f;
     static float Rise(float f) => jumpHeight * f;
 
+    // 1. Flat ground, gaps that widen, a hurdle and a step up and down.
     static float WarmUp(float x)
     {
-        x = Run(x, x + 14f, 0f);
-        x = Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
-        x = Run(x + Gap(0.45f), x + Gap(0.45f) + 8f, 0f);
+        x = Run(x, x + 16f, 0f);
+        foreach (var g in new[] { 0.30f, 0.40f, 0.50f })
+            x = Run(x + Gap(g), x + Gap(g) + 8f, 0f);
+        float end = Run(x, x + 14f, 0f);
+        PutCentre("block_small", x + 6f, 0f);            // hurdle, sitting on the floor
+        float step = Rise(0.45f);
+        var face = Column(end, -3f, step);
+        float top = Run(Right(face) - 0.05f, Right(face) + 8f, step);
+        return Run(top + Gap(0.25f), top + Gap(0.25f) + 8f, 0f);
+    }
+
+    // 2. Loose stones up over a pit, a rest at the top, stones back down,
+    //    then a second, steeper climb on narrow platforms.
+    static float RuinedStairway(float x)
+    {
+        float y = 0f;
+        foreach (var n in new[] { "ledge", "slab", "block_rune", "edge_broken", "slab" })
+        {
+            y += Rise(0.30f);
+            x = Right(Put(n, x + Gap(0.33f), y));
+        }
+        x = PlatRun(x + Gap(0.30f), 2, y);
+        foreach (var n in new[] { "block_rune", "ledge", "edge_broken" })
+        {
+            y -= Rise(0.35f);
+            x = Right(Put(n, x + Gap(0.35f), Mathf.Max(y, Rise(0.2f))));
+        }
+        x = Run(x + Gap(0.25f), x + Gap(0.25f) + 6f, 0f);
+        y = 0f;
+        for (int i = 0; i < 4; i++)
+        {
+            y += Rise(0.40f);
+            x = PlatRun(x + Gap(0.30f), 0, y);
+        }
+        return Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
+    }
+
+    // 3. Two walls too tall to jump. Push a crate to each; the second crate
+    //    starts far back so it has to be shoved a long way.
+    static float CrateWalls(float x)
+    {
+        float crateH = Height(Load("crate"));
+        float wall = (Rise(1.04f) + crateH + Rise(0.82f)) / 2f;
+        for (int i = 0; i < 2; i++)
+        {
+            float len = i == 0 ? 16f : 26f;
+            float wallX = Run(x, x + len, 0f);
+            PutUnder("crate", x + 4f, 0f);
+            var face = Column(wallX, -3f, wall);
+            float end = Run(Right(face) - 0.05f, Right(face) + 8f, wall);
+            x = Run(end + Gap(0.2f), end + Gap(0.2f) + 6f, 0f);
+        }
         return x;
     }
 
-    static float RisingSteps(float x)
-    {
-        // Loose single stones climbing over a pit, then a drop back down.
-        float y = 0f;
-        foreach (var n in new[] { "ledge", "slab", "block_rune", "edge_broken" })
-        {
-            y += Rise(0.32f);
-            var go = Put(n, x + Gap(0.35f), y);
-            x = Right(go);
-        }
-        return Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
-    }
-
-    static float CrateClimb(float x)
-    {
-        // A wall just too tall to jump. The crate is the only way up.
-        var crate = Load("crate");
-        float crateH = Height(crate);
-        float wall = (Rise(1.04f) + crateH + Rise(0.82f)) / 2f;
-        float wallX = Run(x, x + 16f, 0f);
-        PutUnder("crate", x + 5f, 0f);
-        var face = Column(wallX, -3f, wall);
-        float end = Run(Right(face) - 0.05f, Right(face) + 10f, wall);
-        return Run(end + Gap(0.2f), end + Gap(0.2f) + 6f, 0f);   // hop down
-    }
-
+    // 4. A long chain of platforms that give way under you, up and down in
+    //    height, with one solid rest stop in the middle.
     static float CrumblingWay(float x)
     {
-        // Every step gives way under you. Keep moving.
-        foreach (var n in new[] { "falling_intact", "falling_cracked", "falling_half_left", "falling_half_right" })
-        {
-            var go = Put(n, x + Gap(0.30f), Rise(0.12f));
-            x = Right(go);
-        }
+        string[] chain = { "falling_intact", "falling_cracked", "falling_half_left", "falling_half_right" };
+        float[] heights = { 0.12f, 0.30f, 0.18f, 0.40f };
+        for (int i = 0; i < 4; i++) x = Right(Put(chain[i], x + Gap(0.30f), Rise(heights[i])));
+        x = PlatRun(x + Gap(0.30f), 0, Rise(0.25f));                       // rest stop
+        for (int i = 3; i >= 0; i--) x = Right(Put(chain[i], x + Gap(0.30f), Rise(heights[3 - i])));
         return Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
     }
 
-    static float LogCorridor(float x)
+    // 5. A long corridor with three spiked logs out of step with each other,
+    //    so each one has to be timed on its own.
+    static float BladeCorridor(float x)
     {
-        float end = Run(x, x + 18f, 0f);
+        float end = Run(x, x + 44f, 0f);
         Swing("spiked_log", x + 9f, 0f, 55f);
+        Swing("spiked_log", x + 21f, 0f, -35f);
+        Swing("spiked_log", x + 33f, 0f, 70f);
         return end;
     }
 
+    // 6. The stone on the seesaw holds the far end up as a step to a ledge
+    //    too high to reach from the floor.
     static float Seesaw(float x)
     {
-        // The stone sits on the left end, holding the right end up as a step
-        // to a ledge that's too high to reach from the floor.
-        float floorEnd = Run(x, x + 16f, 0f);
-        var pivot = Put("seesaw_pivot", x + 6.5f, 0f, useColliderTop: false);
+        float floorEnd = Run(x, x + 18f, 0f);
+        var pivot = Put("seesaw_pivot", x + 8f, 0f, useColliderTop: false);
         float pivotTop = Top(pivot, collider: false);
         float cx = (Left(pivot) + Right(pivot)) / 2f;
         var plank = PutCentre("seesaw_plank", cx, pivotTop);
@@ -339,73 +368,64 @@ public static class CourseBuilder
         float ledgeY = pivotTop + Rise(0.55f) + 1.2f;
         float ledgeX = Right(plank) + 0.6f;
         var face = Column(ledgeX, -3f, ledgeY);
-        float top = Run(Right(face) - 0.05f, Right(face) + 8f, ledgeY);
+        float top = Run(Right(face) - 0.05f, Right(face) + 10f, ledgeY);
         float down = Run(top + Gap(0.2f), top + Gap(0.2f) + 6f, 0f);
         return Mathf.Max(down, floorEnd);
     }
 
-    static float HeavyBlock(float x)
+    // 7. A low ceiling so there's no jumping. Shove the stone block off the
+    //    end, cross the gap, then do it again with a crate in a second tunnel.
+    static float LowTunnel(float x)
     {
-        // Low ceiling: no jumping over the block. Shove it off the end.
-        float end = Run(x, x + 20f, 0f);
-        float ceiling = 2.6f;
-        for (float cx = x + 3f; cx < end - 3f;)
+        foreach (var block in new[] { "stone_block", "crate" })
         {
-            var slab = PutUnder("slab", cx, ceiling);
-            cx = Right(slab) - 0.05f;
+            float end = Run(x, x + 22f, 0f);
+            for (float cx = x + 3f; cx < end - 3f;)
+                cx = Right(PutUnder("slab", cx, 2.6f)) - 0.05f;
+            PutUnder(block, x + 5f, 0f);
+            x = Run(end + Gap(0.40f), end + Gap(0.40f) + 8f, 0f);
         }
-        PutUnder("stone_block", x + 5f, 0f);
-        return Run(end + Gap(0.40f), end + Gap(0.40f) + 8f, 0f);
+        return x;
     }
 
+    // 8. Stone columns of uneven height over a deep drop.
     static float PillarHop(float x)
     {
-        float[] heights = { 0.6f, 2.0f, 1.0f, 2.6f, 1.4f };
-        foreach (var h in heights)
-        {
-            var top = Column(x + Gap(0.38f), -12f, h);
-            x = Right(top);
-        }
+        float[] heights = { 0.6f, 2.0f, 1.0f, 2.6f, 1.4f, 3.0f, 2.0f, 0.8f, 1.8f };
+        foreach (var h in heights) x = Right(Column(x + Gap(0.38f), -12f, h));
         return Run(x + Gap(0.35f), x + Gap(0.35f) + 8f, 0f);
     }
 
-    static float IronSwing(float x)
+    // 9. Platforms over a pit with two spiked balls sweeping the gaps, then a
+    //    loose plank bridge with a crate sitting on it.
+    static float IronGauntlet(float x)
     {
-        // Platforms over a pit with a spiked ball sweeping the second gap.
         x = PlatRun(x + Gap(0.35f), 1, Rise(0.15f));
-        float gapStart = x;
+        float gap1 = x;
         x = PlatRun(x + Gap(0.42f), 2, Rise(0.30f));
-        Swing("spiked_ball", gapStart + Gap(0.42f) / 2f, Rise(0.15f), 50f);
-        x = PlatRun(x + Gap(0.35f), 0, Rise(0.20f));
-        return Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
-    }
-
-    static float LooseBridge(float x)
-    {
-        // A loose plank bridging a gap, with a small crate sitting on it.
-        float left = Run(x, x + 10f, 0f);
-        var plank = PutUnder("bridge_plank", left - 0.6f, 0f);
-        float right = Right(plank) - 0.6f;
+        Swing("spiked_ball", gap1 + Gap(0.42f) / 2f, Rise(0.15f), 50f);
+        float gap2 = x;
+        x = PlatRun(x + Gap(0.42f), 1, Rise(0.20f));
+        Swing("spiked_ball", gap2 + Gap(0.42f) / 2f, Rise(0.20f), -45f);
+        x = Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
+        var plank = PutUnder("bridge_plank", x - 0.6f, 0f);
         PutUnder("crate_small", Left(plank) + 0.9f, Top(plank, collider: true) + 0.02f);
-        return Run(right, right + 10f, 0f);
+        float right = Right(plank) - 0.6f;
+        return Run(right, right + 8f, 0f);
     }
 
-    static float TheWell(float x)
+    // 10. Drop into the well, climb out on the barrel, and run to the wall
+    //     at the end of the course.
+    static float TheWellAndFinish(float x)
     {
-        // Drop in, and the only way out is climbing the barrel.
         float barrelH = Height(Load("barrel"));
         float depth = (Rise(1.04f) + barrelH + Rise(0.82f)) / 2f;
         float lip = Run(x, x + 8f, 0f);
         float floorEnd = Run(lip, lip + 10f, -depth);
         PutUnder("barrel", lip + 3f, -depth);
         var face = Column(floorEnd, -depth - 3f, 0f);
-        return Run(Right(face) - 0.05f, Right(face) + 12f, 0f);
-    }
-
-    static float Finish(float x)
-    {
-        float end = Run(x, x + 14f, 0f);
-        Column(end - 1f, 0f, Rise(1.6f));     // the wall at the end of the course
+        float end = Run(Right(face) - 0.05f, Right(face) + 16f, 0f);
+        Column(end - 1f, 0f, Rise(1.6f));
         return end;
     }
 
