@@ -289,14 +289,15 @@ public static class CourseBuilder
     // 1. Flat ground, gaps that widen, a hurdle and a step up and down.
     static float WarmUp(float x)
     {
-        x = Run(x, x + 16f, 0f);
+        x = Run(x, x + 16f, 0f, leftCap: true);   // the start line
         foreach (var g in new[] { 0.30f, 0.40f, 0.50f })
             x = Run(x + Gap(g), x + Gap(g) + 8f, 0f);
-        float end = Run(x, x + 14f, 0f);
+        float end = Run(x, x + 22f, 0f);
         PutCentre("block_small", x + 6f, 0f);            // hurdle, sitting on the floor
+        FloorSpikes(x + 12f, x + 15.5f, 0f);             // then a spike patch to jump
         float step = Rise(0.45f);
         var face = Column(end, -3f, step);
-        float top = Run(Right(face) - 0.05f, Right(face) + 8f, step, leftCap: false);
+        float top = Run(Right(face) - 0.05f, Right(face) + 8f, step);
         return Run(top + Gap(0.25f), top + Gap(0.25f) + 8f, 0f);
     }
 
@@ -318,10 +319,10 @@ public static class CourseBuilder
         }
         x = Run(x + Gap(0.25f), x + Gap(0.25f) + 6f, 0f);
         y = 0f;
-        for (int i = 0; i < 4; i++)
+        foreach (var n in new[] { "block_rune", "ledge", "slab", "edge_broken" })
         {
             y += Rise(0.40f);
-            x = PlatRun(x + Gap(0.30f), 0, y);
+            x = Right(Put(n, x + Gap(0.30f), y));
         }
         return Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
     }
@@ -334,12 +335,12 @@ public static class CourseBuilder
         float y = 0f;
         foreach (var box in new[] { "crate", "stone_block" })
         {
-            float faceX = Run(x, x + 16f, y, leftCap: y == 0f);
+            float faceX = Run(x, x + 16f, y);
             PutUnder(box, x + 4f, y);
             y += Wall(box);
             x = Right(Column(faceX, -3f, y)) - 0.05f;      // column reaches the ground
         }
-        float top = Run(x, x + 8f, y, leftCap: false);
+        float top = Run(x, x + 8f, y);
         return Run(top + Gap(0.2f), top + Gap(0.2f) + 8f, 0f);      // drop back down
     }
 
@@ -353,7 +354,7 @@ public static class CourseBuilder
         string[] chain = { "falling_intact", "falling_cracked", "falling_half_left", "falling_half_right" };
         float[] heights = { 0.12f, 0.30f, 0.18f, 0.40f };
         for (int i = 0; i < 4; i++) x = Right(Put(chain[i], x + Gap(0.30f), Rise(heights[i])));
-        x = PlatRun(x + Gap(0.30f), 0, Rise(0.25f));                       // rest stop
+        x = Right(Put("ledge", x + Gap(0.30f), Rise(0.25f)));              // rest stop
         for (int i = 3; i >= 0; i--) x = Right(Put(chain[i], x + Gap(0.30f), Rise(heights[3 - i])));
         return Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
     }
@@ -363,9 +364,9 @@ public static class CourseBuilder
     static float BladeCorridor(float x)
     {
         float end = Run(x, x + 44f, 0f);
-        Swing("spiked_log", x + 9f, 0f, 55f);
-        Swing("spiked_log", x + 21f, 0f, -35f);
-        Swing("spiked_log", x + 33f, 0f, 70f);
+        Swing("spiked_log", x + 9f, 0f, 80f);
+        Swing("spiked_log", x + 21f, 0f, -75f);
+        Swing("spiked_log", x + 33f, 0f, 85f);
         return end;
     }
 
@@ -382,7 +383,7 @@ public static class CourseBuilder
         float ledgeY = pivotTop + Rise(0.55f) + 1.2f;
         float ledgeX = Right(plank) + 0.6f;
         var face = Column(ledgeX, -3f, ledgeY);
-        float top = Run(Right(face) - 0.05f, Right(face) + 10f, ledgeY, leftCap: false);
+        float top = Run(Right(face) - 0.05f, Right(face) + 10f, ledgeY);
         float down = Run(top + Gap(0.2f), top + Gap(0.2f) + 6f, 0f);
         return Mathf.Max(down, floorEnd);
     }
@@ -410,22 +411,17 @@ public static class CourseBuilder
         return Run(x + Gap(0.35f), x + Gap(0.35f) + 8f, 0f);
     }
 
-    // 9. Platforms over a pit with two spiked balls sweeping the gaps, then a
-    //    loose plank bridge with a crate sitting on it.
+    // 9. Platforms over a pit with two spiked balls sweeping the gaps.
     static float IronGauntlet(float x)
     {
         x = PlatRun(x + Gap(0.35f), 1, Rise(0.15f));
         float gap1 = x;
         x = PlatRun(x + Gap(0.42f), 2, Rise(0.30f));
-        Swing("spiked_ball", gap1 + Gap(0.42f) / 2f, Rise(0.15f), 50f);
+        Swing("spiked_ball", gap1 + Gap(0.42f) / 2f, Rise(0.15f), 80f);
         float gap2 = x;
         x = PlatRun(x + Gap(0.42f), 1, Rise(0.20f));
-        Swing("spiked_ball", gap2 + Gap(0.42f) / 2f, Rise(0.20f), -45f);
-        x = Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
-        var plank = PutUnder("bridge_plank", x - 0.6f, 0f);
-        PutUnder("crate_small", Left(plank) + 0.9f, Top(plank, collider: true) + 0.02f);
-        float right = Right(plank) - 0.6f;
-        return Run(right, right + 8f, 0f, leftCap: false);   // no pillar where the plank rests
+        Swing("spiked_ball", gap2 + Gap(0.42f) / 2f, Rise(0.20f), -80f);
+        return Run(x + Gap(0.30f), x + Gap(0.30f) + 10f, 0f);
     }
 
     // 10. Drop into the well, climb out on the barrel, and run to the wall
@@ -438,18 +434,18 @@ public static class CourseBuilder
         float floorEnd = Run(lip, lip + 10f, -depth);
         PutUnder("barrel", lip + 3f, -depth);
         var face = Column(floorEnd, -depth - 3f, 0f);
-        float end = Run(Right(face) - 0.05f, Right(face) + 16f, 0f, leftCap: false);
+        float end = Run(Right(face) - 0.05f, Right(face) + 16f, 0f);
         Column(end - 1f, 0f, Rise(1.6f));
         return end;
     }
 
     // ---------------------------------------------------------------- placing
 
-    // ground_left is the run's end cap: a walkway with a tall broken pillar
-    // on its left. Its walkway - not the pillar - goes at `y`. Right after a
-    // column there's already an edge, so leftCap: false starts with plain
-    // walkway instead.
-    static float Run(float x0, float x1, float y, bool leftCap = true)
+    // ground_left is an end cap: a walkway with a tall broken pillar on its
+    // left. It's used once, at the very start of the course (leftCap: true);
+    // every other run starts with plain walkway. Its walkway - not the
+    // pillar - goes at `y`.
+    static float Run(float x0, float x1, float y, bool leftCap = false)
     {
         GameObject go;
         if (leftCap)
@@ -486,7 +482,6 @@ public static class CourseBuilder
 
     static float PlatRun(float x, int mids, float y)
     {
-        if (mids == 0) return Right(Put("plat_single", x, y));
         x = Right(Put("plat_left", x, y)) - 0.05f;
         for (int i = 0; i < mids; i++) x = Right(Put("plat_mid", x, y)) - 0.05f;
         return Right(Put("plat_right", x, y));
@@ -510,12 +505,34 @@ public static class CourseBuilder
     {
         var hazard = PrefabUtility.InstantiatePrefab(Load(name), section) as GameObject;
         var b = hazard.GetComponent<Renderer>().bounds;
-        float lowest = floorY + 0.7f;                         // clears the floor, not the player
+        float lowest = floorY + 1.3f;                         // clears the floor, not the player
         hazard.transform.position += new Vector3(cx - b.center.x, lowest - b.min.y, 0f);
         var hinge = hazard.GetComponent<HingeJoint2D>();
         var pin = hazard.transform.TransformPoint(hinge.anchor);
         PutCentre("ceiling_bracket", pin.x, pin.y - 0.15f);
         hazard.transform.RotateAround(pin, Vector3.forward, startAngle);
+    }
+
+    // A row of floor spikes from Assets/Sprites/props/spikes_floor.png, each
+    // with trap.cs so touching one restarts the level. Skipped (with a note
+    // in the Console) until that sprite has been added.
+    const string SpikeSprite = "Assets/Sprites/props/spikes_floor.png";
+    static void FloorSpikes(float left, float right, float floorY)
+    {
+        var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SpikeSprite);
+        if (sprite == null) { Debug.Log($"CourseBuilder: no {SpikeSprite} yet, floor spikes skipped"); return; }
+        for (float x = left; x < right;)
+        {
+            var go = new GameObject("spikes_floor");
+            go.transform.SetParent(section);
+            go.AddComponent<SpriteRenderer>().sprite = sprite;
+            var b = sprite.bounds;
+            go.transform.position = new Vector3(x - b.min.x, floorY - b.min.y, 0f);
+            go.AddComponent<PolygonCollider2D>();
+            go.AddComponent<trap>();
+            x += b.size.x - 0.02f;
+        }
+        Physics2D.SyncTransforms();
     }
 
     // Place by the walkable top (collider) at `top`, left edge at `left`.
