@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 5537112740329639207}
   - component: {fileID: 2240250783682840949}
   - component: {fileID: 1222005601323554929}
-  - component: {fileID: 8132194847976539000}
+  - component: {fileID: 4079469791745680101}
   m_Layer: 8
   m_Name: falling_intact_0
   m_TagString: Untagged
@@ -141,7 +141,7 @@ FixedJoint2D:
   m_ConnectedAnchor: {x: 5.1989365, y: -2.2714283}
   m_DampingRatio: 0
   m_Frequency: 0
---- !u!61 &8132194847976539000
+--- !u!61 &4079469791745680101
 BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
