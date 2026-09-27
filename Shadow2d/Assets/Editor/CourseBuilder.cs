@@ -334,7 +334,7 @@ public static class CourseBuilder
             float faceX = Run(x, x + 16f, y, leftCap: y == 0f);
             PutUnder(box, x + 4f, y);
             y += Wall(box);
-            x = Right(Column(faceX, y - Wall(box) - 3f, y)) - 0.05f;
+            x = Right(Column(faceX, -3f, y)) - 0.05f;      // column reaches the ground
         }
         float top = Run(x, x + 8f, y, leftCap: false);
         return Run(top + Gap(0.2f), top + Gap(0.2f) + 8f, 0f);      // drop back down
