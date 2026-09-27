@@ -51,7 +51,8 @@ public class Respawn : MonoBehaviour
         else
             outOfMap = p.y < killY;
 
-        if (outOfMap) DoRespawn();
+        // R restarts by hand, in case a box gets pushed somewhere useless.
+        if (outOfMap || Input.GetKeyDown(KeyCode.R)) DoRespawn();
     }
 
     // Reloading the scene puts the player back on the starting line AND

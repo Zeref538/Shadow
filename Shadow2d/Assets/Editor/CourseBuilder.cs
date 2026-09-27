@@ -257,7 +257,7 @@ public static class CourseBuilder
         float x = 0f;
         x = Section("01 Warm-up",          x, WarmUp);
         x = Section("02 Ruined stairway",  x, RuinedStairway);
-        x = Section("03 Crate walls",      x, CrateWalls);
+        x = Section("03 Crate climb",      x, CrateClimb);
         x = Section("04 Crumbling way",    x, CrumblingWay);
         x = Section("05 Blade corridor",   x, BladeCorridor);
         x = Section("06 Seesaw",           x, Seesaw);
@@ -293,7 +293,7 @@ public static class CourseBuilder
         PutCentre("block_small", x + 6f, 0f);            // hurdle, sitting on the floor
         float step = Rise(0.45f);
         var face = Column(end, -3f, step);
-        float top = Run(Right(face) - 0.05f, Right(face) + 8f, step);
+        float top = Run(Right(face) - 0.05f, Right(face) + 8f, step, leftCap: false);
         return Run(top + Gap(0.25f), top + Gap(0.25f) + 8f, 0f);
     }
 
@@ -323,22 +323,22 @@ public static class CourseBuilder
         return Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
     }
 
-    // 3. Two walls too tall to jump. Push a crate to each; the second crate
-    //    starts far back so it has to be shoved a long way.
-    static float CrateWalls(float x)
+    // 3. A two-storey climb. The first wall is too tall to jump: push the
+    //    crate against it and climb up. Up there the second wall is too tall
+    //    again, and the stone block is the step - push it over and climb on.
+    static float CrateClimb(float x)
     {
-        float crateH = Height(Load("crate"));
-        float wall = (Rise(1.04f) + crateH + Rise(0.82f)) / 2f;
-        for (int i = 0; i < 2; i++)
+        float Wall(string box) => (Rise(1.04f) + Height(Load(box)) + Rise(0.82f)) / 2f;
+        float y = 0f;
+        foreach (var box in new[] { "crate", "stone_block" })
         {
-            float len = i == 0 ? 16f : 26f;
-            float wallX = Run(x, x + len, 0f);
-            PutUnder("crate", x + 4f, 0f);
-            var face = Column(wallX, -3f, wall);
-            float end = Run(Right(face) - 0.05f, Right(face) + 8f, wall);
-            x = Run(end + Gap(0.2f), end + Gap(0.2f) + 6f, 0f);
+            float faceX = Run(x, x + 16f, y, leftCap: y == 0f);
+            PutUnder(box, x + 4f, y);
+            y += Wall(box);
+            x = Right(Column(faceX, y - Wall(box) - 3f, y)) - 0.05f;
         }
-        return x;
+        float top = Run(x, x + 8f, y, leftCap: false);
+        return Run(top + Gap(0.2f), top + Gap(0.2f) + 8f, 0f);      // drop back down
     }
 
     // 4. A long chain of platforms that give way under you, up and down in
@@ -377,7 +377,7 @@ public static class CourseBuilder
         float ledgeY = pivotTop + Rise(0.55f) + 1.2f;
         float ledgeX = Right(plank) + 0.6f;
         var face = Column(ledgeX, -3f, ledgeY);
-        float top = Run(Right(face) - 0.05f, Right(face) + 10f, ledgeY);
+        float top = Run(Right(face) - 0.05f, Right(face) + 10f, ledgeY, leftCap: false);
         float down = Run(top + Gap(0.2f), top + Gap(0.2f) + 6f, 0f);
         return Mathf.Max(down, floorEnd);
     }
@@ -433,7 +433,7 @@ public static class CourseBuilder
         float floorEnd = Run(lip, lip + 10f, -depth);
         PutUnder("barrel", lip + 3f, -depth);
         var face = Column(floorEnd, -depth - 3f, 0f);
-        float end = Run(Right(face) - 0.05f, Right(face) + 16f, 0f);
+        float end = Run(Right(face) - 0.05f, Right(face) + 16f, 0f, leftCap: false);
         Column(end - 1f, 0f, Rise(1.6f));
         var finish = new GameObject("FinishLine");
         finish.transform.SetParent(section);
@@ -447,9 +447,20 @@ public static class CourseBuilder
 
     // ---------------------------------------------------------------- placing
 
-    static float Run(float x0, float x1, float y)
+    // ground_left is the run's end cap: a walkway with a tall broken pillar
+    // on its left. Its walkway - not the pillar - goes at `y`. Right after a
+    // column there's already an edge, so leftCap: false starts with plain
+    // walkway instead.
+    static float Run(float x0, float x1, float y, bool leftCap = true)
     {
-        var go = Put("ground_left", x0, y);
+        GameObject go;
+        if (leftCap)
+        {
+            go = Put("ground_left", x0, y);
+            go.transform.position += Vector3.up * (y - Walkway(go));
+            Physics2D.SyncTransforms();
+        }
+        else go = Put("ground_mid", x0, y);
         float x = Right(go) - 0.05f;           // overlap a hair so edges meet
         float rightW = Width(Load("ground_right"));
         while (x + rightW < x1)
@@ -458,6 +469,21 @@ public static class CourseBuilder
             x = Right(go) - 0.05f;
         }
         return Right(Put("ground_right", x, y));
+    }
+
+    // Highest collider point on the right half of the piece: the walkway,
+    // ignoring anything sticking up on the left.
+    static float Walkway(GameObject go)
+    {
+        float mid = go.GetComponent<Renderer>().bounds.center.x;
+        float best = float.MinValue;
+        foreach (var c in go.GetComponentsInChildren<Collider2D>())
+            foreach (var p in Points(c))
+            {
+                var w = c.transform.TransformPoint(p);
+                if (w.x > mid && w.y > best) best = w.y;
+            }
+        return best;
     }
 
     static float PlatRun(float x, int mids, float y)
