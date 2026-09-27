@@ -1,20 +1,17 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// Sends the player back to the respawn point when they fall off the map
+// Sends the player back to the starting line when they fall off the map
 // or leave the background art. Attaches itself to the "Player" in every
-// scene, so no scene setup is needed; the respawn point is where the
-// player starts unless one is assigned in the inspector.
+// scene, so no scene setup is needed.
 public class Respawn : MonoBehaviour
 {
-    public Transform respawnPoint;
     public float killY = -10f;      // fallback when there's no Background
-    public float margin = 1f;       // how far past the background edge counts as out
+    public float margin = 3f;       // how far past the background edge counts as out
 
-    private Vector3 spawnPos;
-    private Rigidbody2D rb;
     private Bounds bgBounds;
     private bool hasBg;
+    private bool respawning;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Init()
@@ -32,9 +29,6 @@ public class Respawn : MonoBehaviour
 
     private void Start()
     {
-        rb = GetComponent<Rigidbody2D>();
-        spawnPos = respawnPoint != null ? respawnPoint.position : transform.position;
-
         var bg = GameObject.Find("Background");
         if (bg != null)
         {
@@ -60,13 +54,13 @@ public class Respawn : MonoBehaviour
         if (outOfMap) DoRespawn();
     }
 
+    // Reloading the scene puts the player back on the starting line AND
+    // resets every prop - broken falling platforms, shoved crates - so the
+    // course is always finishable after a fall.
     public void DoRespawn()
     {
-        transform.position = respawnPoint != null ? respawnPoint.position : spawnPos;
-        if (rb != null)
-        {
-            rb.linearVelocity = Vector2.zero;
-            rb.angularVelocity = 0f;
-        }
+        if (respawning) return;
+        respawning = true;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 }
