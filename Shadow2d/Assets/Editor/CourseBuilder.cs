@@ -271,8 +271,9 @@ public static class CourseBuilder
     // A wide ruined gateway at a zone border: two thick piers and a lintel,
     // standing in the background (no collider, behind the level and the
     // player). The border sits in the middle of the left pier. If
-    // Assets/Sprites/props/gate.png exists it is used instead, with the border
-    // 20% in from its left edge (inside the left tower).
+    // Assets/Sprites/props/gate.png exists it is used instead: a side-view
+    // gatehouse whose tunnel is solid shadow, so the border sits at its
+    // centre, hidden in the tunnel.
     const string GateSprite = "Assets/Sprites/props/gate.png";
     static void Gate(Transform parent, float border)
     {
@@ -287,7 +288,7 @@ public static class CourseBuilder
             sr.sprite = art;
             sr.sortingOrder = -10;
             var b = art.bounds;
-            go.transform.position = new Vector3(border - (b.min.x + b.size.x * 0.2f), -4.5f - b.min.y, 0f);
+            go.transform.position = new Vector3(border - b.center.x, -4.5f - b.min.y, 0f);
             return;
         }
         float colW = Width(Load("pillar_top"));
