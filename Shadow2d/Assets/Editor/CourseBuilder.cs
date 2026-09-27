@@ -328,7 +328,6 @@ public static class CourseBuilder
     //    again, and the stone block is the step - push it over and climb on.
     static float CrateClimb(float x)
     {
-        float Wall(string box) => (Rise(1.04f) + Height(Load(box)) + Rise(0.82f)) / 2f;
         float y = 0f;
         foreach (var box in new[] { "crate", "stone_block" })
         {
@@ -340,6 +339,9 @@ public static class CourseBuilder
         float top = Run(x, x + 8f, y, leftCap: false);
         return Run(top + Gap(0.2f), top + Gap(0.2f) + 8f, 0f);      // drop back down
     }
+
+    // Too tall to jump from the floor, easy from on top of `box`.
+    static float Wall(string box) => (Rise(1.04f) + Height(Load(box)) + Rise(0.82f)) / 2f;
 
     // 4. A long chain of platforms that give way under you, up and down in
     //    height, with one solid rest stop in the middle.
@@ -420,7 +422,7 @@ public static class CourseBuilder
         var plank = PutUnder("bridge_plank", x - 0.6f, 0f);
         PutUnder("crate_small", Left(plank) + 0.9f, Top(plank, collider: true) + 0.02f);
         float right = Right(plank) - 0.6f;
-        return Run(right, right + 8f, 0f);
+        return Run(right, right + 8f, 0f, leftCap: false);   // no pillar where the plank rests
     }
 
     // 10. Drop into the well, climb out on the barrel, and run to the wall
