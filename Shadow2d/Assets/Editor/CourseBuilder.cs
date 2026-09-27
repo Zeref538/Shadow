@@ -193,6 +193,23 @@ public static class CourseBuilder
                 sr.transform.position = new Vector3(x / 2f, p.y, p.z);
             }
 
+        // The camera shows 12 units of height and follows the player up the
+        // stairway (~16 up) and down pits toward the KillZone. The art only
+        // spans y -4.5..9.6, so solid strips in the art's own edge colours
+        // run 40 units above and below it, across the whole level.
+        if (bg != null)
+        {
+            var art = new Bounds();
+            bool first = true;
+            foreach (var r in bg.GetComponentsInChildren<SpriteRenderer>())
+            {
+                if (first) { art = r.bounds; first = false; }
+                else art.Encapsulate(r.bounds);
+            }
+            Fill(bg.transform, "fill_above", art.center.x, art.max.y + 20f - 0.05f, art.size.x, 40f, new Color32(23, 22, 43, 255));
+            Fill(bg.transform, "fill_below", art.center.x, art.min.y - 20f + 0.05f, art.size.x, 40f, new Color32(27, 19, 43, 255));
+        }
+
         // Background music: looping, starts with the scene.
         var music = Object.FindFirstObjectByType<AudioSource>();
         if (music == null) music = GameObject.Find("Main Camera").AddComponent<AudioSource>();
@@ -215,6 +232,18 @@ public static class CourseBuilder
         // trap.cs reloads by build index; a scene not in this list has none.
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(OutScene, true) };
         Debug.Log($"CourseBuilder: course built, {x:F0} units long, saved to {OutScene}");
+    }
+
+    static void Fill(Transform parent, string name, float cx, float cy, float w, float h, Color32 colour)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent);
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/backgrounds/fill.png");   // 1x1 unit white
+        sr.color = colour;
+        sr.sortingOrder = -101;                                   // behind the sky layer
+        go.transform.position = new Vector3(cx, cy, 0f);
+        go.transform.localScale = new Vector3(w, h, 1f);
     }
 
     // Push the real player straight up with the real jump force in a
