@@ -23,7 +23,7 @@ public static class BuildGameScene
     const float LevelLength = 160f;
     // Swap this one word to reskin the whole level: ruin, ruin_vines,
     // cavern, ice, moss, lava. All six sets share the same 16 tile names.
-    const string TileSet = "moss";
+    const string TileSet = "ruin";
 
     [MenuItem("Shadow/Build Game Scene")]
     public static void Build()
@@ -285,7 +285,7 @@ public static class BuildGameScene
         // Solid colour, not Skybox: a 2D game has no skybox, and the leftover
         // default is the dark blue that shows through every gap in the art.
         cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.backgroundColor = new Color(0.58f, 0.80f, 0.92f);   // daytime sky
+        cam.backgroundColor = new Color32(25, 23, 44, 255);   // top row of bg1_sky, so any gap above the art blends in
 
         var music = Ensure<AudioSource>(cam.gameObject);
         music.clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/bgm.wav");
@@ -293,24 +293,16 @@ public static class BuildGameScene
         music.playOnAwake = true;
         music.volume = 0.5f;
 
-        // Daylight. The template's Global Light 2D is dim and cold, which is
-        // what made everything read as night.
-        var globalLight = GameObject.Find("Global Light 2D");
-        if (globalLight != null && globalLight.TryGetComponent<Light2D>(out var l2d))
-        {
-            l2d.color = new Color(1f, 0.98f, 0.92f);   // warm daylight
-            l2d.intensity = 1.15f;
-        }
 
         var bg = new GameObject("Background");
         // Nearer layers scroll faster; that speed difference is what the eye
         // reads as depth. Sky barely moves, bamboo races past.
         var layers = new[]
         {
-            ("bg1_sky",  0.10f, -14f, -100),
-            ("bg2_far",  0.30f, -14f,  -90),
-            ("bg3_mid",  0.55f, -14f,  -80),
-            ("bg4_near", 0.85f, -14f,  -20),
+            ("bg1_sky",  0.10f, -4.5f, -100),
+            ("bg2_far",  0.30f, -4.5f,  -90),
+            ("bg3_mid",  0.55f, -4.5f,  -80),
+            ("bg4_near", 0.85f, -4.5f,  -20),
         };
         foreach (var (file, factor, bottom, order) in layers)
         {
@@ -329,7 +321,6 @@ public static class BuildGameScene
             sr.drawMode = SpriteDrawMode.Tiled;
             sr.size = new Vector2(LevelLength + 80f, h);
             sr.sortingOrder = order;
-            go.AddComponent<Parallax>().factor = factor;
         }
 
         var level = new GameObject("Level");
@@ -430,18 +421,14 @@ public static class BuildGameScene
         pm.anime = anim;
         pm.runSpeed = 40f;
 
-        // CameraFollow.cs (the one supplied with the assignment) is still in
-        // the project, but it uses MoveTowards and feels stiff. This one
-        // eases and leads the player instead.
-        var oldFollow = cam.GetComponent<CameraFollow>();
-        if (oldFollow != null) Object.DestroyImmediate(oldFollow);
-
-        var follow = Ensure<PlayerCamera>(cam.gameObject);
-        follow.target = player.transform;
-        follow.smoothTime = 0.18f;
-        follow.lookAhead = 2.5f;
-        follow.offset = new Vector2(0f, 1.2f);
-        follow.minY = 1.5f;
+        // CameraFollow.cs is the one supplied with the assignment.
+        // followOffset shrinks its dead zone: the zone is half the screen
+        // MINUS this, so (9, 4) leaves a small box the player can move in
+        // before the camera starts chasing.
+        var follow = Ensure<CameraFollow>(cam.gameObject);
+        follow.followObject = player;
+        follow.followOffset = new Vector2(9f, 4f);
+        follow.speed = 3f;
 
 
         EditorSceneManager.SaveScene(scene, OutScene);
