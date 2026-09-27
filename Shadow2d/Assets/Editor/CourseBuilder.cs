@@ -5,9 +5,8 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 // Editor-only tool: sets up the prop prefabs and lays out the course.
-// Nothing in here ships in the game - the built .exe runs the four supplied
-// scripts (CharacterController2D, playermovement, CameraFollow, trap) plus
-// Respawn (fall = back to the start) and FinishLine (timer + finish).
+// Nothing in here ships in the game - the built .exe only runs the four
+// supplied scripts (CharacterController2D, playermovement, CameraFollow, trap).
 //
 //   Shadow > 1. Set Up Props     adds physics to the prefabs in Assets/Prefabs
 //   Shadow > 2. Build Course     copies Course.unity's player, camera and
@@ -202,9 +201,13 @@ public static class CourseBuilder
         music.playOnAwake = true;
         music.volume = 0.5f;
 
-        // The KillZone: solid, not a trigger - trap.cs listens for collisions.
+        // The KillZone: solid, not a trigger - trap.cs listens for collisions
+        // and reloads the scene, which puts the player back on the starting
+        // line with every prop reset. It sits just under the lowest floor
+        // (the well, ~-4.5) so a fall restarts quickly, and runs 40 units past
+        // each end so walking off either edge of the map lands on it too.
         var kill = new GameObject("KillZone");
-        kill.transform.position = new Vector3(x / 2f, -14f, 0f);
+        kill.transform.position = new Vector3(x / 2f, -9f, 0f);
         kill.AddComponent<BoxCollider2D>().size = new Vector2(x + 80f, 2f);
         kill.AddComponent<trap>();
 
@@ -437,13 +440,6 @@ public static class CourseBuilder
         var face = Column(floorEnd, -depth - 3f, 0f);
         float end = Run(Right(face) - 0.05f, Right(face) + 16f, 0f, leftCap: false);
         Column(end - 1f, 0f, Rise(1.6f));
-        var finish = new GameObject("FinishLine");
-        finish.transform.SetParent(section);
-        finish.transform.position = new Vector3(end - 6f, 2f, 0f);
-        var zone = finish.AddComponent<BoxCollider2D>();
-        zone.isTrigger = true;
-        zone.size = new Vector2(1f, 6f);
-        finish.AddComponent<FinishLine>();
         return end;
     }
 
