@@ -251,7 +251,7 @@ public static class CourseBuilder
         Physics2D.simulationMode = mode;
     }
 
-    // Fifteen sections, each built around a different idea, sized for
+    // Eighteen sections, each built around a different idea, sized for
     // roughly 2-3 minutes of play (the player runs at ~8 units/s; puzzles and
     // timing the hazards take up the rest). Floor level is y = 0; every
     // section starts and ends there so they can go in any order.
@@ -262,17 +262,20 @@ public static class CourseBuilder
         x = Section("02 Ruined stairway",  x, RuinedStairway);
         x = Section("03 Crate climb",      x, CrateClimb);
         x = Section("04 Crumbling way",    x, CrumblingWay);
-        x = Section("05 Blade corridor",   x, BladeCorridor);
-        x = Section("06 Seesaw",           x, Seesaw);
-        x = Section("07 Boulder valley",   x, BoulderValley);
-        x = Section("08 Low tunnel",       x, LowTunnel);
-        x = Section("09 Iron gauntlet",    x, IronGauntlet);
-        x = Section("10 Drop the crate",   x, DropTheCrate);
-        x = Section("11 Pillar hop",       x, PillarHop);
-        x = Section("12 Collapse climb",   x, CollapseClimb);
-        x = Section("13 Seesaw bridge",    x, SeesawBridge);
-        x = Section("14 Swinging pillars", x, SwingingPillars);
-        x = Section("15 The well",         x, TheWellAndFinish);
+        x = Section("05 Bounce pits",      x, BouncePits);
+        x = Section("06 Blade corridor",   x, BladeCorridor);
+        x = Section("07 Seesaw",           x, Seesaw);
+        x = Section("08 Boulder valley",   x, BoulderValley);
+        x = Section("09 Rope bridge",      x, RopeBridge);
+        x = Section("10 Low tunnel",       x, LowTunnel);
+        x = Section("11 Iron gauntlet",    x, IronGauntlet);
+        x = Section("12 Drop the crate",   x, DropTheCrate);
+        x = Section("13 Hanging platforms", x, HangingPlatforms);
+        x = Section("14 Pillar hop",       x, PillarHop);
+        x = Section("15 Collapse climb",   x, CollapseClimb);
+        x = Section("16 Seesaw bridge",    x, SeesawBridge);
+        x = Section("17 Swinging pillars", x, SwingingPillars);
+        x = Section("18 The well",         x, TheWellAndFinish);
         return x;
     }
 
@@ -541,6 +544,159 @@ public static class CourseBuilder
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
         go.AddComponent<trap>();
         Physics2D.SyncTransforms();
+    }
+
+    // Two pits too wide to jump, each with a bounce pad on a column at the
+    // bottom and a higher ledge on the far side. Drop onto the pad and it
+    // throws you back up - steer across to the ledge while you're in the air.
+    static float BouncePits(float x)
+    {
+        x = Run(x, x + 8f, 0f);
+        float y = 0f;
+        foreach (float target in new[] { 2.0f, 3.5f })
+        {
+            float padX = x + 4.5f;                       // too far to jump straight across
+            var col = Column(padX - Width(Load("pillar_top")) / 2f, -12f, y - 3f);
+            BouncePad((Left(col) + Right(col)) / 2f, Top(col, collider: true));
+            var face = Column(padX + 4.5f, -12f, target);
+            x = Run(Right(face) - 0.05f, Right(face) + 6f, target);
+            y = target;
+        }
+        return Run(x + Gap(0.2f), x + Gap(0.2f) + 8f, 0f);
+    }
+
+    // A rope bridge of loose planks hinged end to end across a gap too wide
+    // to jump, pinned only at the two banks, so it sags and sways as you
+    // cross. A spiked log swings over the middle.
+    static float RopeBridge(float x)
+    {
+        float bank = Run(x, x + 8f, 0f);
+        var post = SpriteObj("bridge_post", "Assets/Sprites/props/bridge_post.png");
+        post.transform.position = new Vector3(bank - 0.9f, 1.2f, 0f);    // decoration on each bank
+        float end = PlankChain(bank + 0.05f, 0f, 7);
+        var post2 = SpriteObj("bridge_post", "Assets/Sprites/props/bridge_post.png");
+        post2.transform.position = new Vector3(end + 0.9f, 1.2f, 0f);
+        Swing("spiked_log", (bank + end) / 2f, 0f, 80f);
+        return Run(end + 0.1f, end + 12f, 0f);
+    }
+
+    // Stone slabs hung from chains over a pit. They hang still until you
+    // land, then swing with you on them; the last two already swing.
+    static float HangingPlatforms(float x)
+    {
+        x = Run(x, x + 8f, 0f);
+        float[] start = { 0f, 14f, 14f };            // same tilt: the two swingers move in step
+        foreach (float angle in start)
+            x = HangingPlatform(x + Gap(0.34f), 0.3f, angle);
+        return Run(x + Gap(0.30f), x + Gap(0.30f) + 10f, 0f);
+    }
+
+    // ------------------------------------------------ pasted-in props
+    // All at 100 px per unit. Collider boxes are in pixels (y down) of the
+    // saved sprite and cover only what you can stand on.
+
+    static GameObject SpriteObj(string name, string path)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(section);
+        go.AddComponent<SpriteRenderer>().sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        return go;
+    }
+
+    static Vector2 Px(GameObject go, float px, float py)
+    {
+        var r = go.GetComponent<SpriteRenderer>().sprite.rect;
+        return new Vector2((px - r.width / 2f) / 100f, (r.height / 2f - py) / 100f);
+    }
+
+    static BoxCollider2D PxBox(GameObject go, float x0, float y0, float x1, float y1)
+    {
+        var a = Px(go, x0, y0);
+        var b = Px(go, x1, y1);
+        var box = go.AddComponent<BoxCollider2D>();
+        box.offset = (a + b) / 2f;
+        box.size = new Vector2(Mathf.Abs(b.x - a.x), Mathf.Abs(b.y - a.y));
+        return box;
+    }
+
+    // bounce_pad.png 250x132: the glowing cap is the spring. Bounciness 1
+    // sends you back up about as high as you fell from.
+    static void BouncePad(float cx, float floorY)
+    {
+        var go = SpriteObj("bounce_pad", "Assets/Sprites/props/bounce_pad.png");
+        go.transform.position = new Vector3(cx, floorY - Px(go, 0f, 131f).y, 0f);
+        var box = PxBox(go, 20f, 24f, 230f, 52f);
+        box.sharedMaterial = BouncyMaterial();
+        go.layer = LayerMask.NameToLayer("Ground");
+        Physics2D.SyncTransforms();
+    }
+
+    static PhysicsMaterial2D BouncyMaterial()
+    {
+        const string path = "Assets/Settings/Bouncy.physicsMaterial2D";
+        var mat = AssetDatabase.LoadAssetAtPath<PhysicsMaterial2D>(path);
+        if (mat != null) return mat;
+        mat = new PhysicsMaterial2D("Bouncy") { bounciness = 1f, friction = 0.4f };
+        AssetDatabase.CreateAsset(mat, path);
+        return mat;
+    }
+
+    // bridge_plank_rope.png 160x26: rope loops at x=4 and x=156 are where the
+    // hinges go. The first and last loops are pinned to the world.
+    static float PlankChain(float left, float topY, int count)
+    {
+        Rigidbody2D prev = null;
+        float x = left;
+        int ground = LayerMask.NameToLayer("Ground");
+        for (int i = 0; i < count; i++)
+        {
+            var go = SpriteObj("bridge_plank", "Assets/Sprites/props/bridge_plank_rope.png");
+            var loopL = Px(go, 4f, 13f);
+            go.transform.position = new Vector3(x - loopL.x, topY - Px(go, 0f, 2f).y, 0f);
+            PxBox(go, 2f, 2f, 158f, 24f);
+            go.layer = ground;
+            var rb = go.AddComponent<Rigidbody2D>();
+            rb.mass = 0.4f;
+            rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+            var hinge = go.AddComponent<HingeJoint2D>();
+            hinge.anchor = loopL;
+            hinge.connectedBody = prev;                  // null = pinned to the bank
+            hinge.autoConfigureConnectedAnchor = true;
+            prev = rb;
+            x = go.transform.TransformPoint(Px(go, 156f, 13f)).x;
+        }
+        var last = prev.gameObject;
+        var pin = last.AddComponent<HingeJoint2D>();
+        pin.anchor = Px(last, 156f, 13f);
+        pin.connectedBody = null;                        // pinned to the far bank
+        pin.autoConfigureConnectedAnchor = true;
+        Physics2D.SyncTransforms();
+        return x;
+    }
+
+    // hanging_platform.png 360x536: ring centre at (180, 29), slab from
+    // y=393 to 445. Hinged at the ring, which hangs from a ceiling bracket.
+    static float HangingPlatform(float left, float slabTop, float startAngle)
+    {
+        var go = SpriteObj("hanging_platform", "Assets/Sprites/props/hanging_platform.png");
+        go.transform.position = new Vector3(left + 1.8f, slabTop - Px(go, 0f, 393f).y, 0f);
+        PxBox(go, 14f, 393f, 346f, 445f);
+        go.layer = LayerMask.NameToLayer("Ground");
+        var rb = go.AddComponent<Rigidbody2D>();
+        rb.mass = 2f;
+        rb.angularDamping = 0.05f;
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+        var hinge = go.AddComponent<HingeJoint2D>();
+        hinge.anchor = Px(go, 180f, 29f);
+        hinge.connectedBody = null;
+        Vector2 ring = go.transform.TransformPoint(hinge.anchor);
+        PutCentre("ceiling_bracket", ring.x, ring.y - 0.15f);
+        float right = left + 3.6f;
+        go.transform.RotateAround(ring, Vector3.forward, startAngle);
+        Physics2D.SyncTransforms();
+        return right;
     }
 
     // Stone columns of uneven height over a deep drop.
