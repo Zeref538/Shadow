@@ -298,7 +298,7 @@ public static class CourseBuilder
     static float WarmUp(float x)
     {
         x = Run(x, x + 16f, 0f, leftCap: true);   // the start line
-        foreach (var g in new[] { 0.30f, 0.40f, 0.50f })
+        foreach (var g in new[] { 0.40f, 0.55f, 0.65f })
             x = Run(x + Gap(g), x + Gap(g) + 8f, 0f);
         float end = Run(x, x + 22f, 0f);
         PutCentre("block_small", x + 6f, 0f);            // hurdle, sitting on the floor
@@ -316,21 +316,21 @@ public static class CourseBuilder
         float y = 0f;
         foreach (var n in new[] { "ledge", "slab", "block_rune", "edge_broken", "slab" })
         {
-            y += Rise(0.30f);
-            x = Right(Put(n, x + Gap(0.33f), y));
+            y += Rise(0.36f);
+            x = Right(Put(n, x + Gap(0.42f), y));
         }
         x = PlatRun(x + Gap(0.30f), 2, y);
         foreach (var n in new[] { "block_rune", "ledge", "edge_broken" })
         {
-            y -= Rise(0.35f);
-            x = Right(Put(n, x + Gap(0.35f), Mathf.Max(y, Rise(0.2f))));
+            y -= Rise(0.40f);
+            x = Right(Put(n, x + Gap(0.45f), Mathf.Max(y, Rise(0.2f))));
         }
         x = Run(x + Gap(0.25f), x + Gap(0.25f) + 6f, 0f);
         y = 0f;
         foreach (var n in new[] { "block_rune", "ledge", "slab", "edge_broken" })
         {
-            y += Rise(0.40f);
-            x = Right(Put(n, x + Gap(0.30f), y));
+            y += Rise(0.45f);
+            x = Right(Put(n, x + Gap(0.40f), y));
         }
         return Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
     }
@@ -361,9 +361,9 @@ public static class CourseBuilder
     {
         string[] chain = { "falling_intact", "falling_cracked", "falling_half_left", "falling_half_right" };
         float[] heights = { 0.12f, 0.30f, 0.18f, 0.40f };
-        for (int i = 0; i < 4; i++) x = Right(Put(chain[i], x + Gap(0.30f), Rise(heights[i])));
-        x = Right(Put("ledge", x + Gap(0.30f), Rise(0.25f)));              // rest stop
-        for (int i = 3; i >= 0; i--) x = Right(Put(chain[i], x + Gap(0.30f), Rise(heights[3 - i])));
+        for (int i = 0; i < 4; i++) x = Right(Put(chain[i], x + Gap(0.42f), Rise(heights[i])));
+        x = Right(Put("ledge", x + Gap(0.42f), Rise(0.25f)));              // rest stop
+        for (int i = 3; i >= 0; i--) x = Right(Put(chain[i], x + Gap(0.42f), Rise(heights[3 - i])));
         return Run(x + Gap(0.30f), x + Gap(0.30f) + 8f, 0f);
     }
 
@@ -371,10 +371,12 @@ public static class CourseBuilder
     //    so each one has to be timed on its own.
     static float BladeCorridor(float x)
     {
-        float end = Run(x, x + 44f, 0f);
-        Swing("spiked_log", x + 9f, 0f, 80f);
-        Swing("spiked_log", x + 21f, 0f, -75f);
-        Swing("spiked_log", x + 33f, 0f, 85f);
+        float end = Run(x, x + 52f, 0f);
+        float[] logs = { 8f, 17f, 26f, 35f, 44f };
+        float[] angles = { 80f, -70f, 85f, -80f, 75f };
+        for (int i = 0; i < logs.Length; i++) Swing("spiked_log", x + logs[i], 0f, angles[i]);
+        FloorSpikes(x + 20.5f, x + 22f, 0f);            // jump these while timing the logs
+        FloorSpikes(x + 38.5f, x + 40f, 0f);
         return end;
     }
 
@@ -406,7 +408,7 @@ public static class CourseBuilder
             for (float cx = x + 3f; cx < end - 3f;)
                 cx = Right(PutUnder("slab", cx, 2.6f)) - 0.05f;
             PutUnder(block, x + 5f, 0f);
-            x = Run(end + Gap(0.40f), end + Gap(0.40f) + 8f, 0f);
+            x = Run(end + Gap(0.55f), end + Gap(0.55f) + 8f, 0f);
         }
         return x;
     }
@@ -435,12 +437,13 @@ public static class CourseBuilder
         float y = 0f;
         foreach (var n in chain)
         {
-            y += Rise(0.25f);
-            x = Right(Put(n, x + Gap(0.28f), y));
+            y += Rise(0.30f);
+            x = Right(Put(n, x + Gap(0.38f), y));
         }
         float start = x + Gap(0.30f);
         float end = Run(start, start + 16f, y);
-        Swing("spiked_log", start + 8f, y, 80f);
+        Swing("spiked_log", start + 9f, y, 80f);
+        FloorSpikes(start + 4f, start + 5.5f, y);
         return Run(end + Gap(0.2f), end + Gap(0.2f) + 8f, 0f);
     }
 
@@ -452,7 +455,7 @@ public static class CourseBuilder
         float plankW = Width(Load("seesaw_plank"));
         for (int i = 0; i < 2; i++)
         {
-            float cx = x + Gap(0.30f) + plankW / 2f;
+            float cx = x + Gap(0.40f) + plankW / 2f;
             var col = Column(cx - Width(Load("pillar_top")) / 2f, -12f, 0f);
             float colCx = (Left(col) + Right(col)) / 2f;
             var pivot = PutCentre("seesaw_pivot", colCx, Top(col, collider: true));
@@ -491,7 +494,7 @@ public static class CourseBuilder
         float bottomStart = Right(down) - 0.3f;
         float bottomEnd = Run(bottomStart, bottomStart + 4f, lowY);
         var up = Ramp(bottomEnd - 0.3f, 0f, descending: false);
-        Boulder(down, 0.3f);
+        Boulder(down, 0.15f);                            // high start: fast, reaches close to the rims
         return Run(Right(up) - 0.05f, Right(up) + 8f, 0f);
     }
 
@@ -573,10 +576,11 @@ public static class CourseBuilder
         float bank = Run(x, x + 8f, 0f);
         var post = SpriteObj("bridge_post", "Assets/Sprites/props/bridge_post.png");
         post.transform.position = new Vector3(bank - 0.9f, 1.2f, 0f);    // decoration on each bank
-        float end = PlankChain(bank + 0.05f, 0f, 7);
+        float end = PlankChain(bank + 0.05f, 0f, 9);
         var post2 = SpriteObj("bridge_post", "Assets/Sprites/props/bridge_post.png");
         post2.transform.position = new Vector3(end + 0.9f, 1.2f, 0f);
-        Swing("spiked_log", (bank + end) / 2f, 0f, 80f);
+        Swing("spiked_log", bank + (end - bank) * 0.33f, 0f, 80f);
+        Swing("spiked_log", bank + (end - bank) * 0.70f, 0f, -80f);
         return Run(end + 0.1f, end + 12f, 0f);
     }
 
@@ -585,9 +589,9 @@ public static class CourseBuilder
     static float HangingPlatforms(float x)
     {
         x = Run(x, x + 8f, 0f);
-        float[] start = { 0f, 14f, 14f };            // same tilt: the two swingers move in step
+        float[] start = { 0f, 14f, 14f, 14f };       // same tilt: the swingers move in step
         foreach (float angle in start)
-            x = HangingPlatform(x + Gap(0.34f), 0.3f, angle);
+            x = HangingPlatform(x + Gap(0.40f), 0.3f, angle);
         return Run(x + Gap(0.30f), x + Gap(0.30f) + 10f, 0f);
     }
 
@@ -702,8 +706,8 @@ public static class CourseBuilder
     // Stone columns of uneven height over a deep drop.
     static float PillarHop(float x)
     {
-        float[] heights = { 0.6f, 2.0f, 1.0f, 2.6f, 1.4f, 3.0f, 2.0f, 0.8f, 1.8f };
-        foreach (var h in heights) x = Right(Column(x + Gap(0.38f), -12f, h));
+        float[] heights = { 0.6f, 2.0f, 1.0f, 2.6f, 1.4f, 3.0f, 2.0f, 0.8f, 1.8f, 3.2f, 1.2f };
+        foreach (var h in heights) x = Right(Column(x + Gap(0.48f), -12f, h));
         return Run(x + Gap(0.35f), x + Gap(0.35f) + 8f, 0f);
     }
 
@@ -712,11 +716,11 @@ public static class CourseBuilder
     {
         x = PlatRun(x + Gap(0.35f), 1, Rise(0.15f));
         float gap1 = x;
-        x = PlatRun(x + Gap(0.42f), 2, Rise(0.30f));
-        Swing("spiked_ball", gap1 + Gap(0.42f) / 2f, Rise(0.15f), 80f);
+        x = PlatRun(x + Gap(0.52f), 2, Rise(0.30f));
+        Swing("spiked_ball", gap1 + Gap(0.52f) / 2f, Rise(0.15f), 80f);
         float gap2 = x;
-        x = PlatRun(x + Gap(0.42f), 1, Rise(0.20f));
-        Swing("spiked_ball", gap2 + Gap(0.42f) / 2f, Rise(0.20f), -80f);
+        x = PlatRun(x + Gap(0.52f), 1, Rise(0.20f));
+        Swing("spiked_ball", gap2 + Gap(0.52f) / 2f, Rise(0.20f), -80f);
         return Run(x + Gap(0.30f), x + Gap(0.30f) + 10f, 0f);
     }
 
@@ -731,6 +735,7 @@ public static class CourseBuilder
         PutUnder("barrel", lip + 3f, -depth);
         var face = Column(floorEnd, -depth - 3f, 0f);
         float end = Run(Right(face) - 0.05f, Right(face) + 16f, 0f);
+        FloorSpikes(end - 9f, end - 7.5f, 0f);           // one last jump before the end wall
         Column(end - 1f, 0f, Rise(1.6f));
         return end;
     }
