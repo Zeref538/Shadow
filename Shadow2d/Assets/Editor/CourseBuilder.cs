@@ -190,14 +190,17 @@ public static class CourseBuilder
         //   grave    sections 4-8     haunted graveyard forest
         //   crystal  sections 9-13    crystal cliffs
         //   storm    sections 14-18   storm citadel (finale)
-        // A wide stone gate stands at each border; the backdrop switches
-        // behind its left pier, so you walk through the gate into the new area.
+        // A tall portal stands at each border and the backdrop switches
+        // behind its column of light, so you pass the portal into the new area.
         var bg = GameObject.Find("Background");
         if (bg != null)
         {
             foreach (Transform old in bg.transform.Cast<Transform>().ToList())
                 Object.DestroyImmediate(old.gameObject);         // the original single backdrop
-            float[] borders = { -40f, sectionStarts[3], sectionStarts[8], sectionStarts[13], x + 40f };
+            // 4 units back from each section start: those sections end on a
+            // run of solid ground, so the marker stands on the floor, not
+            // over the pit that often opens the next section.
+            float[] borders = { -40f, sectionStarts[3] - 4f, sectionStarts[8] - 4f, sectionStarts[13] - 4f, x + 40f };
             for (int z = 0; z < Zones.Length; z++)
                 BackdropZone(bg.transform, Zones[z].name, borders[z], borders[z + 1], Zones[z].below);
             for (int z = 1; z < Zones.Length; z++)
@@ -268,27 +271,40 @@ public static class CourseBuilder
         Fill(zone, "fill_below", (x0 + x1) / 2f, -4.5f - 20f + 0.05f, x1 - x0, 40f, below);
     }
 
-    // A wide ruined gateway at a zone border: two thick piers and a lintel,
-    // standing in the background (no collider, behind the level and the
-    // player). The border sits in the middle of the left pier. If
-    // Assets/Sprites/props/gate.png exists it is used instead: a side-view
-    // gatehouse whose tunnel is solid shadow, so the border sits at its
-    // centre, hidden in the tunnel.
-    const string GateSprite = "Assets/Sprites/props/gate.png";
+    // A zone border marker. With Assets/Sprites/props/portal.png (a tall
+    // rift portal with a solid column of light rising from it) the border
+    // sits inside that column, which is opaque from top to bottom, so the
+    // backdrop change is never seen; a violet-to-black fade continues the
+    // column down into the pit under it. Without the portal art, a wide
+    // ruined gateway built from pillars stands in, the border in its left
+    // pier. Either way it is scenery: no collider, behind the level and the
+    // player.
+    const string PortalSprite = "Assets/Sprites/props/portal.png";
+    static readonly Vector2 PortalSeamPx = new Vector2(370f, 1640f);   // solid column x, stone base y (pixels, y down)
     static void Gate(Transform parent, float border)
     {
         var gate = new GameObject("gate").transform;
         gate.SetParent(parent);
-        var art = AssetDatabase.LoadAssetAtPath<Sprite>(GateSprite);
+        var art = AssetDatabase.LoadAssetAtPath<Sprite>(PortalSprite);
         if (art != null)
         {
-            var go = new GameObject("gate_art");
+            var go = new GameObject("portal");
             go.transform.SetParent(gate);
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = art;
             sr.sortingOrder = -10;
-            var b = art.bounds;
-            go.transform.position = new Vector3(border - b.center.x, -4.5f - b.min.y, 0f);
+            float ppu = art.pixelsPerUnit;
+            var local = new Vector2((PortalSeamPx.x - art.rect.width / 2f) / ppu, (art.rect.height / 2f - PortalSeamPx.y) / ppu);
+            go.transform.position = new Vector3(border - local.x, 0f - local.y, 0f);    // stone base on the floor
+            float artBottom = sr.bounds.min.y;
+
+            var fade = new GameObject("portal_fade");
+            fade.transform.SetParent(gate);
+            var fsr = fade.AddComponent<SpriteRenderer>();
+            fsr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/props/portal_fade.png");   // 1 x 6 units
+            fsr.sortingOrder = -11;
+            fade.transform.position = new Vector3(border, artBottom + 0.05f - 3f, 0f);
+            Fill(gate, "portal_below", border, artBottom - 6f - 20f + 0.1f, 1f, 40f, new Color32(8, 4, 18, 255), -11);
             return;
         }
         float colW = Width(Load("pillar_top"));
@@ -329,14 +345,14 @@ public static class CourseBuilder
         return go;
     }
 
-    static void Fill(Transform parent, string name, float cx, float cy, float w, float h, Color32 colour)
+    static void Fill(Transform parent, string name, float cx, float cy, float w, float h, Color32 colour, int order = -101)
     {
         var go = new GameObject(name);
         go.transform.SetParent(parent);
         var sr = go.AddComponent<SpriteRenderer>();
         sr.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/backgrounds/fill.png");   // 1x1 unit white
         sr.color = colour;
-        sr.sortingOrder = -101;                                   // behind the sky layer
+        sr.sortingOrder = order;                                  // default: behind the sky layer
         go.transform.position = new Vector3(cx, cy, 0f);
         go.transform.localScale = new Vector3(w, h, 1f);
     }
